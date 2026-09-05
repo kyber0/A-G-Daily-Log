@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('api', {
   updateSettings: (partial: Partial<AppConfig>): Promise<IpcResult<AppConfig>> =>
     ipcRenderer.invoke('updateSettings', partial),
 
+  syncSettingsToDatabase: (): Promise<IpcResult<{ containersSynced: number; waterTypesSynced: number; pricesSynced: number }>> =>
+    ipcRenderer.invoke('syncSettingsToDatabase'),
+
   chooseFolder: (): Promise<IpcResult<string>> =>
     ipcRenderer.invoke('chooseFolder'),
 

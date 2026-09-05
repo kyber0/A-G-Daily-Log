@@ -543,6 +543,16 @@ export function getCachedWaterTypes(): Record<string, unknown>[] {
   return db.prepare(`SELECT * FROM refill_water_types_cache`).all() as Record<string, unknown>[]
 }
 
+export function deleteCachedContainerType(rawName: string): void {
+  const db = getLocalDb()
+  db.prepare(`DELETE FROM refill_container_types_cache WHERE UPPER(raw_name) = UPPER(?)`).run(rawName)
+}
+
+export function deleteCachedWaterType(name: string): void {
+  const db = getLocalDb()
+  db.prepare(`DELETE FROM refill_water_types_cache WHERE UPPER(name) = UPPER(?)`).run(name)
+}
+
 // ── History helpers (aggregate from cache) ────────────────────────────────────
 
 export function getCachedHistoryDays(): { date: string; rowCount: number; totalAmount: number; totalExpenses: number }[] {

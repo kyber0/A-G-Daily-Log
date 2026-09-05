@@ -194,10 +194,18 @@ function renderAppShell(appEl: HTMLElement): void {
       easing: 'cubic-bezier(0.25, 1, 0.5, 1)'
     })
   })
+  // Restore previously active screen across dev reloads
+  const savedScreen = (sessionStorage.getItem('activeScreen') as Screen | null) || 'entry'
+  if (savedScreen && savedScreen !== 'entry' && document.getElementById(`screen-${savedScreen}`)) {
+    navigateTo(savedScreen)
+  }
 }
 
 function navigateTo(screen: Screen): void {
   activeScreen = screen
+  try {
+    sessionStorage.setItem('activeScreen', screen)
+  } catch {}
   document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'))
   document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'))
   document.getElementById(`screen-${screen}`)?.classList.add('active')

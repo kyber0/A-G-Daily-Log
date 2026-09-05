@@ -734,10 +734,11 @@ export function renderEntryScreen(
     const selContainer = document.getElementById('sel-container') as HTMLInputElement
     const waterField   = document.getElementById('water-field')!
     const selected = config.containerTypes.find(ct => ct.name === selContainer.value)
-    if (selected && !selected.requiresWaterType) {
-      waterField.classList.add('hidden')
-    } else {
+    // Hide water field when: no container selected, container type not in config (item entry), or container doesn't require water
+    if (selected && selected.requiresWaterType) {
       waterField.classList.remove('hidden')
+    } else {
+      waterField.classList.add('hidden')
     }
   }
 
@@ -760,7 +761,7 @@ export function renderEntryScreen(
     const water     = (document.getElementById('sel-water')     as HTMLSelectElement).value
     const qty       = parseInt((document.getElementById('inp-qty') as HTMLInputElement).value, 10) || 1
     const ct = config.containerTypes.find(c => c.name === container)
-    const effectiveWater = (ct === undefined || ct.requiresWaterType) ? water : ''
+    const effectiveWater = (ct !== undefined && ct.requiresWaterType) ? water : ''
     const priceRow = config.priceTable.find(p => p.container === container && p.water === effectiveWater)
     const minQty   = parseMinQty(priceRow?.note ?? '')
     const hintEl   = document.getElementById('qty-hint')!
@@ -811,7 +812,7 @@ export function renderEntryScreen(
     const qty       = parseInt((document.getElementById('inp-qty')   as HTMLInputElement).value, 10)
     const price     = parseFloat((document.getElementById('inp-price') as HTMLInputElement).value)
     const ct        = config.containerTypes.find(c => c.name === container)
-    const effectiveWater = (ct === undefined || ct.requiresWaterType) ? water : ''
+    const effectiveWater = (ct !== undefined && ct.requiresWaterType) ? water : ''
 
     if (!container) { showToast('Please select a container type.', 'error'); return }
     if (isNaN(qty) || qty < 1) { showToast('Quantity must be at least 1.', 'error'); return }
@@ -819,7 +820,7 @@ export function renderEntryScreen(
 
     // Enforce minimum quantity from price table note
     const ct2 = config.containerTypes.find(c => c.name === container)
-    const effectiveWater2 = (ct2 === undefined || ct2.requiresWaterType) ? water : ''
+    const effectiveWater2 = (ct2 !== undefined && ct2.requiresWaterType) ? water : ''
     const priceRow = config.priceTable.find(p => p.container === container && p.water === effectiveWater2)
     const minQty = parseMinQty(priceRow?.note ?? '')
     if (currentMode === 'DELIVER' && minQty > 1 && qty < minQty) {

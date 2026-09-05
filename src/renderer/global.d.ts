@@ -8,6 +8,7 @@ declare global {
     api: {
       getSettings: () => Promise<import('../../shared/types').IpcResult<import('../../shared/types').AppConfig>>
       updateSettings: (partial: Partial<import('../../shared/types').AppConfig>) => Promise<import('../../shared/types').IpcResult<import('../../shared/types').AppConfig>>
+      syncSettingsToDatabase: () => Promise<import('../../shared/types').IpcResult<{ containersSynced: number; waterTypesSynced: number; pricesSynced: number }>>
       chooseFolder: () => Promise<import('../../shared/types').IpcResult<string>>
       testSupabaseAuth: (creds: { url: string; anonKey: string; email: string; password: string }) => Promise<import('../../shared/types').IpcResult<void>>
       openSaveFolder: () => Promise<void>

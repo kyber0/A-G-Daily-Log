@@ -9,6 +9,7 @@ export interface ElectronApi {
   // Settings
   getSettings: () => Promise<IpcResult<AppConfig>>
   updateSettings: (partial: Partial<AppConfig>) => Promise<IpcResult<AppConfig>>
+  syncSettingsToDatabase: () => Promise<IpcResult<{ containersSynced: number; waterTypesSynced: number; pricesSynced: number }>>
   chooseFolder: (title?: string) => Promise<IpcResult<string>>
   testSupabaseAuth: (creds: { url: string; anonKey: string; email: string; password: string }) => Promise<IpcResult<void>>
   openSaveFolder: () => Promise<void>

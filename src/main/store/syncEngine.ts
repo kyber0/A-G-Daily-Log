@@ -138,11 +138,18 @@ async function replayOperation(sb: SupabaseClient, item: SyncQueueItem): Promise
   switch (item.operation) {
     case 'insert': {
       const { error } = await sb.from(item.table_name).insert(payload)
-      if (error) throw new Error(error.message)
+      if (error) {
+        // Postgres unique violation (23505) means already present, which is successful for idempotent inserts
+        if (error.code === '23505') break
+        throw new Error(error.message)
+      }
       break
     }
     case 'upsert': {
-      const { error } = await sb.from(item.table_name).upsert(payload)
+      const onConflict = item.table_name === 'refill_container_types'
+        ? 'raw_name'
+        : (item.table_name === 'refill_water_types' ? 'name' : undefined)
+      const { error } = await sb.from(item.table_name).upsert(payload, onConflict ? { onConflict } : undefined)
       if (error) throw new Error(error.message)
       break
     }
