@@ -3,7 +3,7 @@ import { Icons } from '../components/icons'
 import { showToast } from '../components/ui'
 
 const DEFAULT_URL = 'https://ukjgbonqbufflwxdgian.supabase.co'
-const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVramdib25xYnVmZmx3eGRnaWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODYyOTUsImV4cCI6MjEwMzg2MjI5NX0.U0cltieGdOU1MIiWo9OOgX5bCnuRuHAw7n40skfcKCo'
+const DEFAULT_ANON_KEY = 'sb_publishable_l5Wxy8RQJLqztFnTAFS5rg_DJClhzQy'
 
 /** Render the first-launch / setup welcome screen */
 export function renderFirstLaunch(
