@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Production build and packaging outputs
+out/
+dist-app/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Secrets & Environment variables
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases & backups
+local.db*
+*.corrupt*
+audit_logs_db.json*
+
+# Temporary scratch & inspection scripts
+scratch/
+scratch_inspect.ts
+supabase/.temp/
+
+# Real business historical spreadsheets & temp locks (keep only empty templates)
+plan/INFO/
+~$*.xlsx
+*.xlsx
+*.xls
+!resources/templates/*.xlsx

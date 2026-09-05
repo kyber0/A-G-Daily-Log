@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A&G Daily Log</title>
+  <meta name="description" content="A&G water refill daily log — log sales and export to Excel." />
+  <link rel="stylesheet" href="./styles/index.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Screens rendered here by main.ts -->
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- Full-screen blocking overlay during save -->
+  <div id="save-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Saving">
+    <div class="save-overlay__inner">
+      <div class="spinner"></div>
+      <p class="save-overlay__text">Saving to Excel…</p>
+    </div>
+  </div>
+
+  <!-- Modals mount here -->
+  <div id="modal-container"></div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
