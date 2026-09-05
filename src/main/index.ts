@@ -89,7 +89,7 @@ function createWindow(): void {
     title: 'Water Refill Daily Log',
     icon: path.join(__dirname, '../../resources/icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.mjs'),
+      preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,

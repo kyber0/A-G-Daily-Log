@@ -2,7 +2,7 @@
   "name": "ag-daily-log",
   "version": "2.1.0",
   "description": "A&G Water Refill Daily Log App",
-  "main": "out/main/index.mjs",
+  "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
