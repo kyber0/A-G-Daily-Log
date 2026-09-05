@@ -44,6 +44,7 @@ import { registerStockReportIpc } from './ipc/stockReportIpc'
 import { registerStockDbIpc } from './ipc/stockDbIpc'
 import { registerExportIpc } from './ipc/exportIpc'
 import { registerAnalyticsIpc } from './ipc/analyticsIpc'
+import { registerUpdateIpc, initAutoUpdater } from './ipc/updateIpc'
 import { startSyncEngine, stopSyncEngine, registerConnectivityIpc, drainQueue } from './store/syncEngine'
 import { runInitialSync } from './store/initialSync'
 import { closeDatabase } from './store/localDb'
@@ -63,6 +64,10 @@ registerStockDbIpc()
 registerExportIpc()
 registerAnalyticsIpc()
 registerConnectivityIpc()
+registerUpdateIpc()
+
+// Initialize background auto-updater
+initAutoUpdater()
 
 // Start the background cron job for auto-backups at 7:00 PM
 startAutoBackupScheduler()

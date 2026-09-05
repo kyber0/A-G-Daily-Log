@@ -28,6 +28,13 @@ async function boot(): Promise<void> {
   // Initialize offline/online connectivity banner
   initConnectivityBanner()
 
+  // Global update notification
+  window.api.on('update:status', (payload: any) => {
+    if (payload?.status === 'downloaded') {
+      showToast(`New update v${payload.availableVersion || ''} is ready! Go to Settings > About to restart & apply.`, 'success', 8000)
+    }
+  })
+
   // 1. Load config
   const configResult = await window.api.getSettings()
   if (!configResult.ok) {

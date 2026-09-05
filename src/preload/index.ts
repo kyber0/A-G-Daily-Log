@@ -162,10 +162,15 @@ contextBridge.exposeInMainWorld('api', {
   syncNow: (): Promise<{ synced: number; failed: number; dead: number }> =>
     ipcRenderer.invoke('sync:now'),
 
-  // ── Dead-letter queue (failed sync items) ──────────────────────────────────
-  syncDeadItems: () => ipcRenderer.invoke('sync:deadItems'),
-  syncRetryDead: (id: string) => ipcRenderer.invoke('sync:retryDead', id),
-  syncDiscardDead: (id: string) => ipcRenderer.invoke('sync:discardDead', id),
+  // ── Application Updates ──────────────────────────────────────────────────
+  getAppVersion: (): Promise<string> =>
+    ipcRenderer.invoke('app:getVersion'),
+  getUpdateState: (): Promise<IpcResult<any>> =>
+    ipcRenderer.invoke('update:getState'),
+  checkForUpdates: (): Promise<IpcResult<{ updateAvailable: boolean; version?: string; message?: string }>> =>
+    ipcRenderer.invoke('update:check'),
+  installUpdate: (): Promise<IpcResult<void>> =>
+    ipcRenderer.invoke('update:install'),
 
   on: (channel: string, callback: (...args: any[]) => void): (() => void) => {
     const wrapper = (_event: Electron.IpcRendererEvent, ...args: any[]) => callback(...args)

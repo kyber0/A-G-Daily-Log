@@ -101,6 +101,13 @@ export interface ElectronApi {
   // Connectivity & Sync
   connectivityStatus: () => Promise<{ isOnline: boolean; pendingCount: number }>
   syncNow: () => Promise<{ synced: number; failed: number }>
+
+  // Application Updates
+  getAppVersion: () => Promise<string>
+  getUpdateState: () => Promise<IpcResult<any>>
+  checkForUpdates: () => Promise<IpcResult<{ updateAvailable: boolean; version?: string; message?: string }>>
+  installUpdate: () => Promise<IpcResult<void>>
+
   on: (channel: string, callback: (...args: any[]) => void) => () => void
   removeListener: (channel: string, callback: (...args: any[]) => void) => void
 }

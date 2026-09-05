@@ -20,6 +20,9 @@ export function renderSettingsScreen(
   let exportMonth = new Date().toISOString().substring(0, 7)
   let savedScrollPosition = parseInt(sessionStorage.getItem('settingsScrollTop') || '0', 10) || 0
 
+  let appVersion = '...'
+  let updateState: any = { status: 'idle' }
+
   // Initial fetch of Google Drive status
   window.api.driveStatus().then(res => {
     if (res.ok) {
@@ -28,6 +31,33 @@ export function renderSettingsScreen(
     }
     isFetchingDrive = false
     render()
+  })
+
+  // Initial fetch of App Version and Update State
+  window.api.getAppVersion().then(ver => {
+    if (ver) {
+      appVersion = ver
+      if (activeTab === 'about') refreshTabContent()
+    }
+  }).catch(() => {})
+
+  window.api.getUpdateState().then(res => {
+    if (res?.ok && res.data) {
+      updateState = res.data
+      if (res.data.currentVersion) appVersion = res.data.currentVersion
+      if (activeTab === 'about') refreshTabContent()
+    }
+  }).catch(() => {})
+
+  // Listen to live auto-update events
+  window.api.on('update:status', (payload: any) => {
+    if (payload) {
+      updateState = payload
+      if (payload.currentVersion) appVersion = payload.currentVersion
+      if (activeTab === 'about') {
+        refreshTabContent()
+      }
+    }
   })
 
   render()
@@ -258,6 +288,23 @@ export function renderSettingsScreen(
         @keyframes st-pulse {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.3); opacity: 0.6; }
+        }
+        .st-pulse-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--clr-primary);
+          animation: st-pulse 1.8s infinite;
+          display: inline-block;
+        }
+        .st-btn-spinner {
+          display: inline-block;
+          width: 13px;
+          height: 13px;
+          border: 2px solid currentColor;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
         }
 
         /* Toolbar & Filters */
@@ -562,6 +609,23 @@ export function renderSettingsScreen(
     }
 
     bindEvents()
+  }
+
+  function formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  function formatLastCheck(iso: string): string {
+    try {
+      const d = new Date(iso)
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return 'Recently'
+    }
   }
 
   function renderActiveTabContent(): string {
@@ -1219,42 +1283,172 @@ export function renderSettingsScreen(
           </div>
         `
 
-      case 'about':
-        return `
-          <div class="st-card">
-            <div class="st-card-header">
-              <h3>${Icons.info} Application Details</h3>
-            </div>
-            <div class="st-card-body">
-              <div style="display:flex;align-items:center;gap:20px;">
-                <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--clr-primary),#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:900;box-shadow:var(--shadow-md);">
-                  A&G
-                </div>
-                <div>
-                  <div style="font-size:18px;font-weight:800;color:var(--clr-text);">Living Water A&G System</div>
-                  <div style="font-size:13px;color:var(--clr-text-muted);margin-top:2px;">Version 1.0.3 (Production Build)</div>
-                </div>
-              </div>
+      case 'about': {
+        const renderBadge = () => {
+          switch (updateState.status) {
+            case 'checking':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(14,165,233,0.12);color:var(--clr-primary);border:1px solid rgba(14,165,233,0.25);"><span class="st-btn-spinner" style="width:10px;height:10px;border-width:2px;"></span> Checking GitHub...</span>`
+            case 'downloading':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(14,165,233,0.12);color:var(--clr-primary);border:1px solid rgba(14,165,233,0.25);"><span class="st-pulse-dot"></span> Downloading (${updateState.progress?.percent || 0}%)</span>`
+            case 'downloaded':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(16,185,129,0.15);color:var(--clr-success);border:1px solid rgba(16,185,129,0.3);">${Icons.check} Update Ready</span>`
+            case 'available':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(245,158,11,0.12);color:#d97706;border:1px solid rgba(245,158,11,0.25);">${Icons.download} Update Available</span>`
+            case 'not-available':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(16,185,129,0.12);color:var(--clr-success);border:1px solid rgba(16,185,129,0.25);">${Icons.check} Up to Date</span>`
+            case 'error':
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(239,68,68,0.12);color:var(--clr-danger);border:1px solid rgba(239,68,68,0.25);">${Icons.alertTriangle} Check Notice</span>`
+            default:
+              return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:var(--clr-surface-2);color:var(--clr-text-muted);border:1px solid var(--clr-border);">Ready</span>`
+          }
+        }
 
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px;">
-                <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Architecture</div>
-                  <div style="font-size:14px;font-weight:700;color:var(--clr-text);margin-top:4px;">Electron + Supabase Cloud</div>
-                </div>
-                <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Database Sync</div>
-                  <div style="font-size:14px;font-weight:700;color:var(--clr-success);margin-top:4px;display:flex;align-items:center;gap:6px;">
-                    ${Icons.check} Live Connected
+        return `
+          <div style="display:flex;flex-direction:column;gap:20px;">
+
+            <!-- APPLICATION UPDATES CARD -->
+            <div class="st-card">
+              <div class="st-card-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,0.12);color:var(--clr-primary);">
+                    ${Icons.refreshCw}
+                  </span>
+                  <div>
+                    <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--clr-text);">Application Updates</h3>
+                    <span style="font-size:12px;color:var(--clr-text-muted);">Automated online updates via GitHub Releases</span>
                   </div>
                 </div>
-                <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Developer</div>
-                  <div style="font-size:14px;font-weight:700;color:var(--clr-text);margin-top:4px;">Keaneth Dave Berido</div>
+                ${renderBadge()}
+              </div>
+
+              <div class="st-card-body" style="gap:18px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                  <div style="padding:14px 16px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-muted);">Installed Version</div>
+                    <div style="font-size:16px;font-weight:800;color:var(--clr-text);margin-top:4px;display:flex;align-items:center;gap:8px;">
+                      v${appVersion}
+                      <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;background:rgba(255,255,255,0.06);color:var(--clr-text-muted);border:1px solid var(--clr-border);">Current</span>
+                    </div>
+                  </div>
+
+                  <div style="padding:14px 16px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-muted);">Update Channel</div>
+                    <div style="font-size:13px;font-weight:700;color:var(--clr-text);margin-top:4px;display:flex;align-items:center;gap:6px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                      kyber0/A-G-Daily-Log
+                    </div>
+                  </div>
+
+                  <div style="padding:14px 16px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-muted);">Last Check</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--clr-text);margin-top:4px;">
+                      ${updateState.lastChecked ? formatLastCheck(updateState.lastChecked) : 'Not checked yet'}
+                    </div>
+                  </div>
+                </div>
+
+                ${updateState.status === 'downloading' ? `
+                  <div style="padding:16px 20px;border-radius:12px;background:rgba(14,165,233,0.06);border:1px solid rgba(14,165,233,0.25);display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <span style="font-size:13px;font-weight:700;color:var(--clr-text);display:flex;align-items:center;gap:8px;">
+                        <span class="st-pulse-dot"></span>
+                        Downloading Update ${updateState.availableVersion ? `(v${updateState.availableVersion})` : ''}...
+                      </span>
+                      <span style="font-size:13px;font-weight:800;color:var(--clr-primary);font-family:monospace;">
+                        ${updateState.progress?.percent || 0}%
+                      </span>
+                    </div>
+
+                    <div style="width:100%;height:8px;border-radius:4px;background:var(--clr-surface);overflow:hidden;border:1px solid var(--clr-border);">
+                      <div style="height:100%;background:linear-gradient(90deg,var(--clr-primary),#38bdf8);border-radius:4px;width:${updateState.progress?.percent || 0}%;transition:width 0.2s ease;"></div>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--clr-text-muted);">
+                      <span>${formatBytes(updateState.progress?.transferred || 0)} / ${formatBytes(updateState.progress?.total || 0)}</span>
+                      <span>${formatBytes(updateState.progress?.bytesPerSecond || 0)}/s</span>
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${updateState.status === 'downloaded' ? `
+                  <div style="padding:16px 20px;border-radius:12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      <div style="width:36px;height:36px;border-radius:50%;background:rgba(16,185,129,0.15);color:var(--clr-success);display:flex;align-items:center;justify-content:center;">
+                        ${Icons.checkCircle}
+                      </div>
+                      <div>
+                        <div style="font-size:14px;font-weight:800;color:var(--clr-text);">Update Ready to Install!</div>
+                        <div style="font-size:12px;color:var(--clr-text-muted);">Version ${updateState.availableVersion || 'latest'} has been downloaded and verified.</div>
+                      </div>
+                    </div>
+                    <button id="btn-install-update" class="btn" style="background:var(--clr-success);color:#fff;font-weight:700;display:flex;align-items:center;gap:8px;padding:10px 20px;box-shadow:0 2px 8px rgba(16,185,129,0.3);cursor:pointer;">
+                      ${Icons.refreshCw} Restart & Apply Update
+                    </button>
+                  </div>
+                ` : ''}
+
+                ${updateState.status === 'error' ? `
+                  <div style="padding:14px 16px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);display:flex;align-items:center;gap:12px;">
+                    <span style="color:var(--clr-danger);display:flex;align-items:center;">${Icons.alertTriangle}</span>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:700;color:var(--clr-danger);">Notice</div>
+                      <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">${updateState.error || 'Unable to fetch updates from GitHub.'}</div>
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:4px;">
+                  <button id="btn-check-updates" class="btn btn-secondary" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;" ${updateState.status === 'checking' || updateState.status === 'downloading' ? 'disabled' : ''}>
+                    ${updateState.status === 'checking'
+                      ? `<span class="st-btn-spinner"></span> Checking GitHub...`
+                      : `${Icons.refreshCw} Check for Updates Now`}
+                  </button>
+
+                  <span style="font-size:12px;color:var(--clr-text-muted);">
+                    The app automatically checks for updates in the background upon launch.
+                  </span>
                 </div>
               </div>
             </div>
+
+            <!-- APPLICATION DETAILS CARD -->
+            <div class="st-card">
+              <div class="st-card-header">
+                <h3>${Icons.info} Application Details</h3>
+              </div>
+              <div class="st-card-body">
+                <div style="display:flex;align-items:center;gap:20px;">
+                  <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--clr-primary),#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:900;box-shadow:var(--shadow-md);">
+                    A&G
+                  </div>
+                  <div>
+                    <div style="font-size:18px;font-weight:800;color:var(--clr-text);">Living Water A&G System</div>
+                    <div style="font-size:13px;color:var(--clr-text-muted);margin-top:2px;">Version ${appVersion} (Production Build)</div>
+                  </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px;">
+                  <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Architecture</div>
+                    <div style="font-size:14px;font-weight:700;color:var(--clr-text);margin-top:4px;">Electron + Supabase Cloud</div>
+                  </div>
+                  <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Database Sync</div>
+                    <div style="font-size:14px;font-weight:700;color:var(--clr-success);margin-top:4px;display:flex;align-items:center;gap:6px;">
+                      ${Icons.check} Live Connected
+                    </div>
+                  </div>
+                  <div style="padding:14px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);">Developer</div>
+                    <div style="font-size:14px;font-weight:700;color:var(--clr-text);margin-top:4px;">Keaneth Dave Berido</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         `
+      }
     }
   }
 
@@ -1874,6 +2068,36 @@ export function renderSettingsScreen(
 
       await persistConfig()
       showToast('Supabase credentials saved and active.', 'success')
+    })
+
+    // ── Application Updates Events ─────────────────────────────────────────────
+    q('#btn-check-updates')?.addEventListener('click', async () => {
+      const btn = q<HTMLButtonElement>('#btn-check-updates')
+      if (btn) btn.disabled = true
+      updateState.status = 'checking'
+      refreshTabContent()
+
+      try {
+        const res = await window.api.checkForUpdates()
+        if (res.ok) {
+          if (res.data?.updateAvailable) {
+            showToast(`New update v${res.data.version || ''} found! Starting download...`, 'info')
+          } else {
+            showToast(res.data?.message || 'You are running the latest version.', 'success')
+          }
+        } else {
+          showToast(`Update notice: ${res.error}`, 'info')
+        }
+      } catch (err: any) {
+        showToast(`Update check failed: ${err?.message || err}`, 'error')
+      }
+    })
+
+    q('#btn-install-update')?.addEventListener('click', async () => {
+      const btn = q<HTMLButtonElement>('#btn-install-update')
+      if (btn) btn.disabled = true
+      showToast('Restarting application to apply update...', 'info')
+      await window.api.installUpdate()
     })
   }
 
