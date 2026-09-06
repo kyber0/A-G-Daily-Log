@@ -735,6 +735,7 @@ export function renderSettingsScreen(
             <div class="st-card">
               <div class="st-card-header">
                 <h3>${Icons.folder} File Storage Directories</h3>
+                <p style="margin:4px 0 0 0;font-size:12px;color:var(--clr-text-muted);">Export dialogs open here by default — no need to navigate every time.</p>
               </div>
               <div class="st-card-body" style="gap:0;padding:0;">
 

@@ -371,9 +371,11 @@ export function registerExportIpc(): void {
   ipcMain.handle('export:salesReport', async (_e, monthStr: string): Promise<IpcResult<string | undefined>> => {
     try {
       const win = BrowserWindow.getFocusedWindow() || undefined
+      const cfg = readConfig()
+      const invDir = (cfg.inventoryFolder && fs.existsSync(cfg.inventoryFolder)) ? cfg.inventoryFolder : undefined
       const saveRes = await dialog.showSaveDialog(win as any, {
         title: 'Export Sales Report to Excel',
-        defaultPath: `SALES REPORT (${monthStr}).xlsx`,
+        defaultPath: invDir ? path.join(invDir, `SALES REPORT (${monthStr}).xlsx`) : `SALES REPORT (${monthStr}).xlsx`,
         filters: [{ name: 'Excel Spreadsheets (*.xlsx)', extensions: ['xlsx'] }]
       })
 
@@ -880,9 +882,11 @@ export function registerExportIpc(): void {
   ipcMain.handle('export:waterLog', async (_e, monthStr: string): Promise<IpcResult<string | undefined>> => {
     try {
       const win = BrowserWindow.getFocusedWindow() || undefined
+      const cfg = readConfig()
+      const saveDir = (cfg.saveFolder && fs.existsSync(cfg.saveFolder)) ? cfg.saveFolder : undefined
       const saveRes = await dialog.showSaveDialog(win as any, {
         title: 'Export Water Audit Log',
-        defaultPath: `audit-${monthStr}.csv`,
+        defaultPath: saveDir ? path.join(saveDir, `audit-${monthStr}.csv`) : `audit-${monthStr}.csv`,
         filters: [
           { name: 'CSV Files (*.csv)', extensions: ['csv'] },
           { name: 'Text Files (*.txt)', extensions: ['txt'] }
@@ -944,9 +948,11 @@ export function registerExportIpc(): void {
   ipcMain.handle('export:itemLog', async (_e, monthStr: string): Promise<IpcResult<string | undefined>> => {
     try {
       const win = BrowserWindow.getFocusedWindow() || undefined
+      const cfg = readConfig()
+      const invDir = (cfg.inventoryFolder && fs.existsSync(cfg.inventoryFolder)) ? cfg.inventoryFolder : undefined
       const saveRes = await dialog.showSaveDialog(win as any, {
         title: 'Export Item Sales Audit Log',
-        defaultPath: `item-audit-${monthStr}.csv`,
+        defaultPath: invDir ? path.join(invDir, `item-audit-${monthStr}.csv`) : `item-audit-${monthStr}.csv`,
         filters: [
           { name: 'CSV Files (*.csv)', extensions: ['csv'] },
           { name: 'Text Files (*.txt)', extensions: ['txt'] }
@@ -1055,9 +1061,13 @@ export function registerExportIpc(): void {
       const cfg = readConfig()
       const sb = await getSupabase()
 
-      // 1. Let user pick destination folder
+      // 1. Let user pick destination folder (default to saved directory)
+      const savedDefault = type === 'sales'
+        ? ((cfg.inventoryFolder && fs.existsSync(cfg.inventoryFolder)) ? cfg.inventoryFolder : undefined)
+        : ((cfg.saveFolder && fs.existsSync(cfg.saveFolder)) ? cfg.saveFolder : undefined)
       const folderRes = await dialog.showOpenDialog(win as any, {
         title: `Choose destination folder for ${year} exports`,
+        defaultPath: savedDefault,
         properties: ['openDirectory', 'createDirectory'],
         buttonLabel: `Export ${year} Here`
       })

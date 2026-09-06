@@ -21,6 +21,81 @@ let currentConfig: AppConfig | null = null
 type Screen = 'entry' | 'history' | 'analytics' | 'settings' | 'logs' | 'inventory' | 'item-sales' | 'sales-report'
 let activeScreen: Screen = 'entry'
 
+// ─── Update Modal & Progress Pill ─────────────────────────────────────────────
+let _dismissedUpdateVersion = ''
+
+function showUpdateModal(payload: any): void {
+  const existing = document.getElementById('update-modal-overlay')
+  if (existing) existing.remove()
+
+  const ver = payload.availableVersion || ''
+  const isDownloaded = payload.status === 'downloaded'
+
+  // Don't re-show if the user already dismissed this version
+  if (_dismissedUpdateVersion === ver && !isDownloaded) return
+
+  const overlay = document.createElement('div')
+  overlay.id = 'update-modal-overlay'
+  overlay.innerHTML = `
+    <div class="update-modal">
+      <div class="update-modal-icon">${isDownloaded ? '✅' : '🔔'}</div>
+      <div class="update-modal-body">
+        <h3 class="update-modal-title">${isDownloaded ? 'Update Ready to Install' : 'New Update Available'}</h3>
+        <p class="update-modal-sub">Version <strong>v${ver}</strong> ${isDownloaded ? 'has been downloaded and is ready to install.' : 'is available and downloading in the background.'}</p>
+        ${payload.releaseNotes ? `<p class="update-modal-notes">${payload.releaseNotes}</p>` : ''}
+      </div>
+      <div class="update-modal-actions">
+        ${isDownloaded
+          ? `<button id="update-modal-install" class="btn btn-primary">Restart &amp; Install</button>`
+          : `<button id="update-modal-later" class="btn btn-ghost">Dismiss</button>`
+        }
+        ${isDownloaded ? `<button id="update-modal-later" class="btn btn-ghost">Later</button>` : ''}
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(overlay)
+
+  document.getElementById('update-modal-later')?.addEventListener('click', () => {
+    _dismissedUpdateVersion = ver
+    overlay.remove()
+  })
+
+  document.getElementById('update-modal-install')?.addEventListener('click', async () => {
+    overlay.remove()
+    await window.api.installUpdate()
+  })
+}
+
+function updateProgressPill(payload: any): void {
+  let pill = document.getElementById('update-progress-pill')
+
+  if (payload?.status !== 'downloading') {
+    pill?.remove()
+    return
+  }
+
+  if (!pill) {
+    pill = document.createElement('div')
+    pill.id = 'update-progress-pill'
+    document.body.appendChild(pill)
+  }
+
+  const pct = Math.round(payload.progress?.percent ?? 0)
+  const mbps = payload.progress?.bytesPerSecond
+    ? `${(payload.progress.bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`
+    : ''
+
+  pill.innerHTML = `
+    <div class="upp-label">
+      <span>⬇ Downloading update…</span>
+      <span class="upp-pct">${pct}%</span>
+    </div>
+    <div class="upp-track"><div class="upp-fill" style="width:${pct}%"></div></div>
+    ${mbps ? `<div class="upp-speed">${mbps}</div>` : ''}
+  `
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 async function boot(): Promise<void> {
   const appEl = document.getElementById('app')!
@@ -28,10 +103,15 @@ async function boot(): Promise<void> {
   // Initialize offline/online connectivity banner
   initConnectivityBanner()
 
-  // Global update notification
+  // Global update notifications
   window.api.on('update:status', (payload: any) => {
-    if (payload?.status === 'downloaded') {
-      showToast(`New update v${payload.availableVersion || ''} is ready! Go to Settings > About to restart & apply.`, 'success', 8000)
+    // Always update the progress pill
+    updateProgressPill(payload)
+
+    if (payload?.status === 'available') {
+      showUpdateModal(payload)
+    } else if (payload?.status === 'downloaded') {
+      showUpdateModal(payload)
     }
   })
 
