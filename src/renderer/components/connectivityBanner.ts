@@ -1,13 +1,16 @@
-/**
- * Connectivity Banner
- * Shows a banner at the top of the app when offline, and a success flash on reconnect.
- */
-
 let _bannerEl: HTMLDivElement | null = null
 let _hideTimer: ReturnType<typeof setTimeout> | null = null
 
+/** Height of the banner in px — used to push #app content down when visible */
+const BANNER_H = 39
+
+function setBannerPadding(visible: boolean): void {
+  const appEl = document.getElementById('app')
+  if (appEl) appEl.style.paddingTop = visible ? `${BANNER_H}px` : ''
+}
+
 export function initConnectivityBanner(): void {
-  // Create banner element
+  // Create banner element and attach to body so it survives #app innerHTML resets
   _bannerEl = document.createElement('div')
   _bannerEl.id = 'connectivity-banner'
   _bannerEl.style.cssText = `
@@ -54,6 +57,7 @@ function updateBanner(isOnline: boolean, pendingCount: number): void {
     // Show offline warning
     if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null }
     _bannerEl.style.display = 'flex'
+    setBannerPadding(true)
     _bannerEl.style.background = '#b91c1c'
     _bannerEl.style.color = '#fff'
     _bannerEl.innerHTML = `
@@ -70,6 +74,7 @@ function updateBanner(isOnline: boolean, pendingCount: number): void {
     // Online but still syncing
     if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null }
     _bannerEl.style.display = 'flex'
+    setBannerPadding(true)
     _bannerEl.style.background = '#1d4ed8'
     _bannerEl.style.color = '#fff'
     _bannerEl.innerHTML = `
@@ -89,7 +94,10 @@ function updateBanner(isOnline: boolean, pendingCount: number): void {
       Back online — all changes synced ✓
     `
     _hideTimer = setTimeout(() => {
-      if (_bannerEl) _bannerEl.style.display = 'none'
+      if (_bannerEl) {
+        _bannerEl.style.display = 'none'
+        setBannerPadding(false)
+      }
     }, 4000)
   }
 }

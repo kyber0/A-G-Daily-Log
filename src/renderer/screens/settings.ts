@@ -1,6 +1,10 @@
 import type { AppConfig } from '../../shared/types'
 import { showToast, showModal } from '../components/ui'
 import { Icons } from '../components/icons'
+import flatpickr from 'flatpickr'
+import monthSelectPlugin from 'flatpickr/dist/plugins/monthSelect/index.js'
+import 'flatpickr/dist/flatpickr.min.css'
+import 'flatpickr/dist/plugins/monthSelect/style.css'
 
 export function renderSettingsScreen(
   container: HTMLElement,
@@ -638,30 +642,44 @@ export function renderSettingsScreen(
             <div class="st-card">
               <div class="st-card-header">
                 <h3>${Icons.archive} Bulk Year Export</h3>
-                <span style="font-size:12px;color:var(--clr-text-muted);font-weight:500;">Generates all files at once</span>
+                <span style="font-size:12px;color:var(--clr-text-muted);font-weight:500;">Generates all files at once per year</span>
               </div>
-              <div class="st-card-body" style="gap:16px;">
-                <p style="margin:0;font-size:13px;color:var(--clr-text-muted);">
-                  Export every month's <strong>Daily Refill Log</strong> + <strong>Item Sales Report</strong> for a full year into one folder — no clicking through each month.
-                </p>
-                <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--clr-surface-2);border-radius:12px;border:1px solid var(--clr-border);">
-                  <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
-                    <label style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:.06em;">Select Year</label>
-                    <select id="bulk-export-year"
-                      style="padding:9px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface);color:var(--clr-text);font-size:14px;font-weight:700;cursor:pointer;max-width:160px;">
-                      ${[...Array(5)].map((_, i) => {
-                        const y = new Date().getFullYear() - i
-                        return `<option value="${y}" ${i === 0 ? 'selected' : ''}>${y}</option>`
-                      }).join('')}
-                    </select>
+              <div class="st-card-body" style="gap:0;padding:0;">
+
+                <div class="st-export-row">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:32px;height:32px;border-radius:8px;background:rgba(14,165,233,0.12);color:#0ea5e9;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${Icons.fileSheet}</div>
+                    <div>
+                      <div style="font-weight:700;font-size:13px;">Water Daily Log</div>
+                      <div style="font-size:11px;color:var(--clr-text-muted);">12 × DAILY LOG.xlsx workbooks for every month of the selected year</div>
+                    </div>
                   </div>
-                  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-                    <button id="btn-bulk-export" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;padding:10px 20px;font-size:14px;">
-                      ${Icons.download} Export Full Year
-                    </button>
-                    <span style="font-size:11px;color:var(--clr-text-muted);">Saves up to 24 .xlsx files to a folder you choose</span>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <select id="bulk-export-year-dailylog"
+                      style="padding:6px 10px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:13px;font-weight:700;cursor:pointer;">
+                      ${[...Array(5)].map((_, i) => { const y = new Date().getFullYear() - i; return `<option value="${y}" ${i === 0 ? 'selected' : ''}>${y}</option>` }).join('')}
+                    </select>
+                    <button id="btn-bulk-export-dailylog" class="btn btn-secondary btn-sm" style="display:flex;align-items:center;gap:6px;">${Icons.download} Export</button>
                   </div>
                 </div>
+
+                <div class="st-export-row">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,0.12);color:#6366f1;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${Icons.shoppingBag}</div>
+                    <div>
+                      <div style="font-weight:700;font-size:13px;">Item Sales Report</div>
+                      <div style="font-size:11px;color:var(--clr-text-muted);">12 × ITEM SALES.xlsx ledgers for every month of the selected year</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <select id="bulk-export-year-sales"
+                      style="padding:6px 10px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:13px;font-weight:700;cursor:pointer;">
+                      ${[...Array(5)].map((_, i) => { const y = new Date().getFullYear() - i; return `<option value="${y}" ${i === 0 ? 'selected' : ''}>${y}</option>` }).join('')}
+                    </select>
+                    <button id="btn-bulk-export-sales" class="btn btn-secondary btn-sm" style="display:flex;align-items:center;gap:6px;">${Icons.download} Export</button>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -671,8 +689,8 @@ export function renderSettingsScreen(
                 <h3>${Icons.download} Single Month Export</h3>
                 <div style="display:flex;align-items:center;gap:8px;">
                   <span style="font-size:12px;font-weight:600;color:var(--clr-text-muted);">Target Month:</span>
-                  <input type="month" id="st-export-month" value="${exportMonth}"
-                    style="padding:6px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:13px;font-weight:700;cursor:pointer;" />
+                  <input type="text" id="st-export-month" value="${exportMonth}" readonly
+                    style="padding:6px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:13px;font-weight:700;cursor:pointer;width:140px;text-align:center;font-family:var(--font);transition:border-color .15s;" />
                 </div>
               </div>
               <div class="st-card-body" style="gap:0;padding:0;">
@@ -1523,21 +1541,28 @@ export function renderSettingsScreen(
     // ── Export Center Events ──────────────────────────────────────────────────
     const monthInput = q<HTMLInputElement>('#st-export-month')
     if (monthInput) {
-      monthInput.addEventListener('change', () => {
-        exportMonth = monthInput.value || new Date().toISOString().substring(0, 7)
-      })
-      monthInput.addEventListener('click', () => {
-        try {
-          if ('showPicker' in HTMLInputElement.prototype) {
-            monthInput.showPicker()
-          }
-        } catch {}
+      // Focus ring
+      monthInput.addEventListener('focus', () => { monthInput.style.borderColor = 'var(--clr-primary)' })
+      monthInput.addEventListener('blur',  () => { monthInput.style.borderColor = 'var(--clr-border)' })
+
+      flatpickr(monthInput, {
+        defaultDate: exportMonth,
+        disableMobile: true,
+        plugins: [
+          monthSelectPlugin({
+            shorthand: true,
+            dateFormat: 'Y-m',
+            altFormat: 'F Y'
+          })
+        ],
+        onChange: (_: Date[], dateStr: string) => {
+          exportMonth = dateStr || new Date().toISOString().substring(0, 7)
+        }
       })
     }
 
     const getActiveMonth = (): string => {
-      const inp = q<HTMLInputElement>('#st-export-month')
-      return (inp && inp.value) ? inp.value : (exportMonth || new Date().toISOString().substring(0, 7))
+      return exportMonth || new Date().toISOString().substring(0, 7)
     }
 
     const handleFileExport = async (
@@ -1582,33 +1607,36 @@ export function renderSettingsScreen(
     }
 
     // ── Bulk Year Export ──────────────────────────────────────────────────────
-    q('#btn-bulk-export')?.addEventListener('click', async () => {
-      const yearSelect = q<HTMLSelectElement>('#bulk-export-year')
-      const year = yearSelect ? parseInt(yearSelect.value, 10) : new Date().getFullYear()
-      const btn = q<HTMLButtonElement>('#btn-bulk-export')
+    async function runBulkExport(
+      btnId: string,
+      yearSelectId: string,
+      label: string,
+      exportFn: (year: number) => Promise<{ ok: boolean; data?: { folder: string; filesWritten: number }; error?: string }>
+    ) {
+      const btn = q<HTMLButtonElement>(`#${btnId}`)
       if (!btn) return
+      const yearSel = q<HTMLSelectElement>(`#${yearSelectId}`)
+      const year = yearSel ? parseInt(yearSel.value, 10) : new Date().getFullYear()
       const origHtml = btn.innerHTML
       btn.innerHTML = `<span class="spinner" style="width:14px;height:14px"></span> Exporting ${year}…`
       btn.disabled = true
       try {
-        const res = await window.api.exportBulkYear(year)
+        const res = await exportFn(year)
         if (res.ok && res.data && res.data.filesWritten > 0) {
-          showToast(`Successfully exported ${res.data.filesWritten} workbooks for ${year}!`, 'success')
+          showToast(`Exported ${res.data.filesWritten} workbooks for ${year}!`, 'success')
           const choice = await showModal({
             icon: Icons.checkCircle,
             iconColor: 'success',
-            title: 'Bulk Export Complete',
-            body: `Exported <strong>${res.data.filesWritten}</strong> Excel spreadsheets for <strong>${year}</strong> to:<br><code style="font-size:12px;color:var(--clr-primary);word-break:break-all;margin-top:6px;display:block;">${res.data.folder}</code>`,
+            title: `Bulk Export Complete — ${label}`,
+            body: `Exported <strong>${res.data.filesWritten}</strong> Excel file(s) for <strong>${year}</strong> to:<br><code style="font-size:12px;color:var(--clr-primary);word-break:break-all;margin-top:6px;display:block;">${res.data.folder}</code>`,
             buttons: [
               { id: 'open', label: 'Open Folder', className: 'btn-primary' },
               { id: 'close', label: 'Done', className: 'btn-ghost' }
             ]
           })
-          if (choice === 'open') {
-            window.api.exportOpenFile(res.data.folder)
-          }
-        } else if (res.ok && res.data && res.data.filesWritten === 0 && res.data.folder) {
-          showToast(`No sales data found for year ${year}.`, 'info')
+          if (choice === 'open') window.api.exportOpenFile(res.data.folder)
+        } else if (res.ok && res.data && res.data.filesWritten === 0) {
+          showToast(`No data found for ${label} in ${year}.`, 'info')
         } else if (!res.ok) {
           showToast(`Export failed: ${res.error}`, 'error')
         }
@@ -1618,7 +1646,14 @@ export function renderSettingsScreen(
         btn.innerHTML = origHtml
         btn.disabled = false
       }
-    })
+    }
+
+    q('#btn-bulk-export-dailylog')?.addEventListener('click', () =>
+      runBulkExport('btn-bulk-export-dailylog', 'bulk-export-year-dailylog', 'Water Daily Log', (y) => window.api.exportBulkYearDailyLog(y))
+    )
+    q('#btn-bulk-export-sales')?.addEventListener('click', () =>
+      runBulkExport('btn-bulk-export-sales', 'bulk-export-year-sales', 'Item Sales Report', (y) => window.api.exportBulkYearSales(y))
+    )
 
     // ── Single Month Action Buttons ──────────────────────────────────────────
     container.querySelectorAll<HTMLButtonElement>('.do-export').forEach(btn => {

@@ -1049,7 +1049,7 @@ export function registerExportIpc(): void {
   // ── Bulk Year Export ──────────────────────────────────────────────────────
   // Generates all 12 Daily Log + 12 Item Sales workbooks for a given year,
   // saving them directly into a user-chosen folder (no per-file save dialogs).
-  ipcMain.handle('export:bulkYear', async (_e, year: number): Promise<IpcResult<{ folder: string; filesWritten: number }>> => {
+  ipcMain.handle('export:bulkYear', async (_e, year: number, type: 'dailylog' | 'sales' | 'both' = 'both'): Promise<IpcResult<{ folder: string; filesWritten: number }>> => {
     try {
       const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || undefined
       const cfg = readConfig()
@@ -1077,41 +1077,43 @@ export function registerExportIpc(): void {
         const startDate = `${year}-${monthPadded}-01`
         const endDate = `${year}-${monthPadded}-${String(daysInMonth).padStart(2, '0')}`
 
-        // ── A. Daily Refill Log (EXACT same workbook as history tab) ────────
-        const { wb, hasData } = await buildDailyLogWorkbook(year, monthNum, cfg)
-        if (hasData) {
-          const dailyLogDestPath = path.join(destFolder, `${monthPadded}. DAILY LOG (${mon})-${year}.xlsx`)
-          if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true })
-          await wb.xlsx.writeFile(dailyLogDestPath)
-          filesWritten++
+        // ── A. Daily Refill Log ─────────────────────────────────────────────
+        if (type === 'dailylog' || type === 'both') {
+          const { wb, hasData } = await buildDailyLogWorkbook(year, monthNum, cfg)
+          if (hasData) {
+            const dailyLogDestPath = path.join(destFolder, `${monthPadded}. DAILY LOG (${mon})-${year}.xlsx`)
+            if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true })
+            await wb.xlsx.writeFile(dailyLogDestPath)
+            filesWritten++
+          }
         }
 
-
         // ── B. Item Sales Report ───────────────────────────────────────────
-        let salesData: any[] = []
-        if (!isOnline()) {
-          const db = getLocalDb()
-          const raw = db.prepare('SELECT date, quantity, unit_price_at_sale, discount, remarks, item_name, item_code, category_name FROM item_sales_cache WHERE date >= ? AND date <= ? ORDER BY date ASC').all(startDate, endDate)
-          salesData = raw.map((r: any) => ({
-            date: r.date,
-            quantity: r.quantity,
-            unit_price_at_sale: r.unit_price_at_sale,
-            discount: r.discount,
-            remarks: r.remarks,
-            items: {
-              name: r.item_name,
-              code: r.item_code,
-              categories: { name: r.category_name }
-            }
-          }))
-        } else {
-          const { data } = await sb
+        if (type === 'sales' || type === 'both') {
+          let salesData: any[] = []
+          if (!isOnline()) {
+            const db = getLocalDb()
+            const raw = db.prepare('SELECT date, quantity, unit_price_at_sale, discount, remarks, item_name, item_code, category_name FROM item_sales_cache WHERE date >= ? AND date <= ? ORDER BY date ASC').all(startDate, endDate)
+            salesData = raw.map((r: any) => ({
+              date: r.date,
+              quantity: r.quantity,
+              unit_price_at_sale: r.unit_price_at_sale,
+              discount: r.discount,
+              remarks: r.remarks,
+              items: {
+                name: r.item_name,
+                code: r.item_code,
+                categories: { name: r.category_name }
+              }
+            }))
+          } else {
+            const { data } = await sb
             .from('item_sales')
             .select(`id, quantity, unit_price_at_sale, discount, date, remarks, items(name, code, srp, categories(name))`)
             .gte('date', startDate).lte('date', endDate)
             .order('date', { ascending: true }).order('created_at', { ascending: true })
-          salesData = data || []
-        }
+            salesData = data || []
+          }
 
 
         if (salesData && salesData.length > 0) {
@@ -1201,8 +1203,9 @@ export function registerExportIpc(): void {
           const salesDestPath = path.join(destFolder, `ITEM SALES (${mon})-${year}.xlsx`)
           await salesWb.xlsx.writeFile(salesDestPath)
           filesWritten++
-        }
-      }
+        } // if salesData.length > 0
+        } // end if type === sales
+      } // end for monthNum
 
       return { ok: true, data: { folder: destFolder, filesWritten } }
     } catch (e: unknown) {

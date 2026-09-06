@@ -94,6 +94,8 @@ export interface ElectronApi {
   exportFolder: (srcPath: string) => Promise<IpcResult<{ destPath: string; filesCopied: number }>>
   exportOpenFile: (filePath: string) => Promise<IpcResult<void>>
   exportBulkYear: (year: number) => Promise<IpcResult<{ folder: string; filesWritten: number }>>
+  exportBulkYearDailyLog: (year: number) => Promise<IpcResult<{ folder: string; filesWritten: number }>>
+  exportBulkYearSales: (year: number) => Promise<IpcResult<{ folder: string; filesWritten: number }>>
 
   // Executive Analytics
   getExecutiveAnalytics: (year: number, month: number) => Promise<IpcResult<any>>

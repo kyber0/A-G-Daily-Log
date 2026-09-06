@@ -1,6 +1,6 @@
 {
   "name": "ag-daily-log",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A&G Water Refill Daily Log App",
   "main": "out/main/index.js",
   "scripts": {

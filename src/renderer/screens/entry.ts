@@ -321,11 +321,27 @@ export function renderEntryScreen(
   function bindEvents(): void {
     const datePicker = document.getElementById('date-picker') as HTMLInputElement
     
+    /** Hides the extra last row in flatpickr when all 7 cells are nextMonthDay placeholders */
+    function trimExtraFpRow(fp: any): void {
+      if (!fp?.calendarContainer) return
+      const days = Array.from<HTMLElement>(fp.calendarContainer.querySelectorAll('.flatpickr-day'))
+      // Reset any previous hiding
+      days.forEach(d => (d.style.display = ''))
+      // If the final 7 cells are all next-month padding, collapse that row
+      const last7 = days.slice(-7)
+      if (last7.length === 7 && last7.every(d => d.classList.contains('nextMonthDay'))) {
+        last7.forEach(d => (d.style.display = 'none'))
+      }
+    }
+
     flatpickr(datePicker, {
       defaultDate: currentDate,
       maxDate: "today",
       dateFormat: "Y-m-d",
       disableMobile: true, // Prevents falling back to native picker on mobile view
+      onReady:      (_, __, fp) => trimExtraFpRow(fp),
+      onMonthChange:(_, __, fp) => trimExtraFpRow(fp),
+      onYearChange: (_, __, fp) => trimExtraFpRow(fp),
       onChange: (selectedDates, dateStr) => {
         if (!dateStr || dateStr === currentDate) return
         

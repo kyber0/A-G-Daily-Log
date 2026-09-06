@@ -79,6 +79,8 @@ declare global {
       exportFolder: (srcPath: string) => Promise<import('../../shared/types').IpcResult<{ destPath: string; filesCopied: number }>>
       exportOpenFile: (filePath: string) => Promise<import('../../shared/types').IpcResult<void>>
       exportBulkYear: (year: number) => Promise<import('../../shared/types').IpcResult<{ folder: string; filesWritten: number }>>
+      exportBulkYearDailyLog: (year: number) => Promise<import('../../shared/types').IpcResult<{ folder: string; filesWritten: number }>>
+      exportBulkYearSales: (year: number) => Promise<import('../../shared/types').IpcResult<{ folder: string; filesWritten: number }>>
 
 
       // Executive Analytics

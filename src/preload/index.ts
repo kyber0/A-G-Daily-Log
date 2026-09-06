@@ -151,7 +151,9 @@ contextBridge.exposeInMainWorld('api', {
   exportItemLog: (monthStr: string): Promise<IpcResult<string | undefined>> => ipcRenderer.invoke('export:itemLog', monthStr),
   exportFolder: (srcPath: string): Promise<IpcResult<{ destPath: string; filesCopied: number }>> => ipcRenderer.invoke('export:folder', srcPath),
   exportOpenFile: (filePath: string): Promise<IpcResult<void>> => ipcRenderer.invoke('export:openFile', filePath),
-  exportBulkYear: (year: number): Promise<IpcResult<{ folder: string; filesWritten: number }>> => ipcRenderer.invoke('export:bulkYear', year),
+  exportBulkYear: (year: number): Promise<IpcResult<{ folder: string; filesWritten: number }>> => ipcRenderer.invoke('export:bulkYear', year, 'both'),
+  exportBulkYearDailyLog: (year: number): Promise<IpcResult<{ folder: string; filesWritten: number }>> => ipcRenderer.invoke('export:bulkYear', year, 'dailylog'),
+  exportBulkYearSales: (year: number): Promise<IpcResult<{ folder: string; filesWritten: number }>> => ipcRenderer.invoke('export:bulkYear', year, 'sales'),
 
   // ── Executive Analytics ────────────────────────────────────────────────────
   getExecutiveAnalytics: (year: number, month: number) => ipcRenderer.invoke('analytics:getExecutive', year, month),
