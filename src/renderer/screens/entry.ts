@@ -51,11 +51,23 @@ function lookupPrice(config: AppConfig, container: string, water: string, mode: 
   return mode === 'PICKUP' ? entry.pickup : entry.deliver
 }
 
+let isEntrySidebarCollapsed = false
+try {
+  isEntrySidebarCollapsed = localStorage.getItem('entry_sidebarCollapsed') === 'true'
+} catch {}
+
 export function renderEntryScreen(
   container: HTMLElement,
   config: AppConfig,
   onNavigate: (screen: string) => void
 ): void {
+  try {
+    const stored = localStorage.getItem('entry_sidebarCollapsed')
+    if (stored !== null) {
+      isEntrySidebarCollapsed = stored === 'true'
+    }
+  } catch {}
+
   // ── State ──────────────────────────────────────────────────────────────────
   let currentDate = todayISO()
   let rows: SaleRow[] = []
@@ -166,7 +178,7 @@ export function renderEntryScreen(
       <div class="entry-layout">
 
         <!-- Left sidebar: form -->
-        <aside class="entry-sidebar">
+        <aside class="entry-sidebar ${isEntrySidebarCollapsed ? 'collapsed' : ''}">
           <div class="entry-sidebar__inner">
             <h3 style="color:var(--clr-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em">New Sale</h3>
 
@@ -452,7 +464,13 @@ export function renderEntryScreen(
     // ── Toggle Sidebar ───────────────────────────────────────────────────────
     document.getElementById('btn-toggle-sidebar')!.addEventListener('click', () => {
       const sidebar = document.querySelector('.entry-sidebar')
-      if (sidebar) sidebar.classList.toggle('collapsed')
+      if (sidebar) {
+        const isCollapsed = sidebar.classList.toggle('collapsed')
+        isEntrySidebarCollapsed = isCollapsed
+        try {
+          localStorage.setItem('entry_sidebarCollapsed', String(isCollapsed))
+        } catch {}
+      }
     })
 
     // ── Daily Expenses Buttons ─────────────────────────────────────────────────
@@ -909,6 +927,10 @@ export function renderEntryScreen(
     const sidebar = document.querySelector('.entry-sidebar')
     if (sidebar && sidebar.classList.contains('collapsed')) {
       sidebar.classList.remove('collapsed')
+      isEntrySidebarCollapsed = false
+      try {
+        localStorage.setItem('entry_sidebarCollapsed', 'false')
+      } catch {}
     }
 
     editingIndex = index

@@ -434,7 +434,12 @@ function renderAppShell(appEl: HTMLElement): void {
   // Restore previously active screen across dev reloads
   const savedScreen = (sessionStorage.getItem('activeScreen') as Screen | null) || 'entry'
   if (savedScreen && savedScreen !== 'entry' && document.getElementById(`screen-${savedScreen}`)) {
-    navigateTo(savedScreen)
+    const navBtn = document.getElementById(`nav-${savedScreen}`)
+    if (navBtn) {
+      navBtn.click()
+    } else {
+      navigateTo(savedScreen)
+    }
   }
 }
 

@@ -22,10 +22,22 @@ function fmtDate(iso: string): string {
   } catch { return iso }
 }
 
+let isSidebarCollapsed = false
+try {
+  isSidebarCollapsed = localStorage.getItem('itemSales_sidebarCollapsed') === 'true'
+} catch {}
+
 export function renderItemSalesScreen(
   container: HTMLElement,
   _config: AppConfig
 ): void {
+  try {
+    const stored = localStorage.getItem('itemSales_sidebarCollapsed')
+    if (stored !== null) {
+      isSidebarCollapsed = stored === 'true'
+    }
+  } catch {}
+
   let inventoryItems: InventoryItem[] = []
   let monthSales: ItemSale[] = []
   let selectedSale: ItemSale | null = null
@@ -66,7 +78,7 @@ export function renderItemSalesScreen(
     <div class="entry-layout" style="position:relative;">
 
       <!-- LEFT: Add Sale Form -->
-      <aside class="entry-sidebar" id="is-sidebar">
+      <aside class="entry-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}" id="is-sidebar">
         <div class="entry-sidebar__inner">
 
           <!-- Edit banner -->
@@ -272,7 +284,13 @@ export function renderItemSalesScreen(
   const dpDelete       = q<HTMLButtonElement>('#dp-delete')
 
   // ── Sidebar toggle ─────────────────────────────────────────────────────────
-  btnToggle.addEventListener('click', () => elSidebar.classList.toggle('collapsed'))
+  btnToggle.addEventListener('click', () => {
+    const isNowCollapsed = elSidebar.classList.toggle('collapsed')
+    isSidebarCollapsed = isNowCollapsed
+    try {
+      localStorage.setItem('itemSales_sidebarCollapsed', String(isNowCollapsed))
+    } catch {}
+  })
 
   // ── Date Pickers ───────────────────────────────────────────────────────────
   flatpickr(elDate, { defaultDate: today, maxDate: 'today', dateFormat: 'Y-m-d' })
@@ -635,7 +653,13 @@ export function renderItemSalesScreen(
   // ── Edit Mode ──────────────────────────────────────────────────────────────
   function startEditSale(sale: ItemSale, idx: number): void {
     editingSale = sale
-    if (elSidebar.classList.contains('collapsed')) elSidebar.classList.remove('collapsed')
+    if (elSidebar.classList.contains('collapsed')) {
+      elSidebar.classList.remove('collapsed')
+      isSidebarCollapsed = false
+      try {
+        localStorage.setItem('itemSales_sidebarCollapsed', 'false')
+      } catch {}
+    }
 
     elDate.value = sale.date || today
     elItemSearch.value = sale.item
