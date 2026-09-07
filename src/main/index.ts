@@ -72,11 +72,9 @@ initAutoUpdater()
 // Start the background cron job for auto-backups at 7:00 PM
 startAutoBackupScheduler()
 
-// Start the offline sync engine (polls connectivity every 15s and drains queue on reconnect)
-startSyncEngine()
-
-// Populate local cache from Supabase in the background (non-blocking)
-runInitialSync().catch(e => console.warn('[main] initialSync error:', e))
+// NOTE: startSyncEngine() and runInitialSync() are intentionally deferred
+// to app.whenReady() below so that safeStorage (used for password decryption)
+// is guaranteed to be available before any Supabase auth attempt.
 
 function createWindow(): void {
   Menu.setApplicationMenu(null)
@@ -115,6 +113,13 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // safeStorage is now available — start auth-dependent background services
+  // Start the offline sync engine (polls connectivity every 15s and drains queue on reconnect)
+  startSyncEngine()
+
+  // Populate local cache from Supabase in the background (non-blocking)
+  runInitialSync().catch(e => console.warn('[main] initialSync error:', e))
+
   if (gotTheLock) {
     createWindow()
   }

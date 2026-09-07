@@ -71,7 +71,10 @@ const DEFAULT_CONFIG: AppConfig = {
 let _cache: AppConfig | null = null
 
 export function readConfig(): AppConfig {
-  if (_cache) return _cache
+  const canDecrypt = typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()
+  if (_cache && (_cache.appAccountPassword || !canDecrypt)) {
+    return _cache
+  }
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
     const parsed = JSON.parse(raw)
@@ -80,7 +83,7 @@ export function readConfig(): AppConfig {
     let password = parsed.appAccountPassword || ''
     if (parsed.appAccountPasswordEncrypted) {
       try {
-        if (typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+        if (canDecrypt) {
           password = safeStorage.decryptString(Buffer.from(parsed.appAccountPasswordEncrypted, 'base64'))
         }
       } catch (err) {

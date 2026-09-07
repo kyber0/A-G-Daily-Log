@@ -84,10 +84,39 @@ export async function buildDailyLogWorkbook(
   wb.creator = 'A&G Water Refill App'
   wb.created = new Date()
 
-  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
-  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-  const subHeaderFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
-  const totalsFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD966' } }
+  // ── Shared palette ────────────────────────────────────────────────────────
+  const C = {
+    navyDark:   'FF1F4E79',  // deep navy – sales header
+    blue:       'FF2E75B6',  // royal blue – sub-headers
+    blueLight:  'FFDCE6F1',  // pale blue – even rows (sales)
+    expDark:    'FF4B3869',  // purple – expense header
+    expLight:   'FFEDE7F6',  // pale purple – even rows (expenses)
+    refDark:    'FF375623',  // dark green – price ref header
+    refLight:   'FFE2EFDA',  // pale green – price ref rows
+    totBg:      'FF1F4E79',  // totals row bg
+    monthBg:    'FF7B3F00',  // monthly totals – dark amber
+    gold:       'FFFFD966',  // gold for totals highlights
+    white:      'FFFFFFFF',
+    dark:       'FF1E293B',
+    muted:      'FF64748B',
+    red:        'FFCC0000',
+    green:      'FF006600',
+    border:     'FFAAAAAA',
+    borderDark: 'FF1F4E79',
+  }
+
+  const fill = (argb: string): ExcelJS.Fill =>
+    ({ type: 'pattern', pattern: 'solid', fgColor: { argb } })
+
+  const borders = (color = C.border, style: ExcelJS.BorderStyle = 'thin'): Partial<ExcelJS.Borders> => ({
+    top: { style, color: { argb: color } },
+    bottom: { style, color: { argb: color } },
+    left: { style, color: { argb: color } },
+    right: { style, color: { argb: color } },
+  })
+
+  const MONTHS_FULL = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
+  const monFull = MONTHS_FULL[monthNum - 1] || 'JANUARY'
 
   const sheetNames: string[] = []
 
@@ -97,29 +126,40 @@ export async function buildDailyLogWorkbook(
     const sheetName = `${mon}${dayPad}`
     sheetNames.push(sheetName)
 
-    const daySales = salesByDate.get(dateStr) || []
-    const dayExpenses = expByDate.get(dateStr) || []
+    const daySales   = salesByDate.get(dateStr)   || []
+    const dayExpenses = expByDate.get(dateStr)    || []
 
     const dObj = new Date(year, monthNum - 1, day)
-    const isSunday = dObj.getDay() === 0
-    const isClosed = isSunday || daySales.length === 0
+    const isSunday  = dObj.getDay() === 0
+    const hasSales  = daySales.length > 0
+    const isClosed  = isSunday || !hasSales
 
     const ws = wb.addWorksheet(sheetName, {
       properties: {
-        tabColor: isClosed ? { argb: 'FFFF0000' } : undefined
+        tabColor: isSunday
+          ? { argb: 'FFEF4444' }  // red — Sunday / closed
+          : hasSales
+            ? { argb: 'FF22C55E' }  // green — has data
+            : { argb: 'FF94A3B8' }  // grey — no data
+      },
+      pageSetup: {
+        orientation: 'landscape',
+        fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+        margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.25, footer: 0.25 }
       }
     })
-    ws.views = [{ state: 'frozen', ySplit: 1 }]
+
+    ws.views = [{ state: 'frozen', ySplit: 2 }]
 
     ws.columns = [
       { width: 5 },   // A - SN
       { width: 20 },  // B - CONTAINER TYPE
-      { width: 12 },  // C - WATER TYPE
+      { width: 14 },  // C - WATER TYPE
       { width: 10 },  // D - QUANTITY
       { width: 14 },  // E - PRICE (PICK UP)
       { width: 14 },  // F - PRICE (DELIVER)
-      { width: 12 },  // G - TOTAL
-      { width: 3 },   // H - spacer
+      { width: 14 },  // G - TOTAL
+      { width: 2 },   // H - spacer
       { width: 16 },  // I - price ref container
       { width: 12 },  // J - ALKALINE
       { width: 12 },  // K - DELIVERED
@@ -127,52 +167,126 @@ export async function buildDailyLogWorkbook(
       { width: 12 },  // M - DELIVERED
       { width: 12 },  // N - MINERAL
       { width: 12 },  // O - DELIVERED
-      { width: 3 },   // P - spacer
+      { width: 2 },   // P - spacer
       { width: 5 },   // Q - SN (expenses)
-      { width: 24 },  // R - DESCRIPTION
-      { width: 12 },  // S - TOTAL (expenses)
-      { width: 20 },  // T - REMARKS
+      { width: 26 },  // R - DESCRIPTION
+      { width: 14 },  // S - TOTAL (expenses)
+      { width: 22 },  // T - REMARKS
     ]
 
-    const hRow = ws.getRow(1)
-    hRow.height = 20
-    const setH = (col: number, val: string, fill = headerFill) => {
+    // ── Row 1 — Section title banner ─────────────────────────────────────────
+    const DAYS_OF_WEEK = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+    const dayName = DAYS_OF_WEEK[dObj.getDay()]
+    const titleRow = ws.getRow(1)
+    titleRow.height = 24
+
+    // Sales section banner (A1:G1)
+    ws.mergeCells('A1:G1')
+    const salesTitle = titleRow.getCell(1)
+    salesTitle.value = `A&G WATER REFILL  ·  ${dayName}, ${monFull} ${dayPad}, ${year}`
+    salesTitle.font  = { bold: true, size: 11, color: { argb: C.white }, name: 'Calibri' }
+    salesTitle.fill  = fill(C.navyDark)
+    salesTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+    salesTitle.border = borders(C.navyDark, 'medium')
+
+    // Spacer (H1) — just color
+    ws.getCell('H1').fill = fill('FFF1F5F9')
+
+    // Price reference banner (I1:O1)
+    ws.mergeCells('I1:O1')
+    const refTitle = titleRow.getCell(9)
+    refTitle.value = 'PRICE REFERENCE'
+    refTitle.font  = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+    refTitle.fill  = fill(C.refDark)
+    refTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+    refTitle.border = borders(C.refDark, 'medium')
+
+    // Spacer (P1)
+    ws.getCell('P1').fill = fill('FFF1F5F9')
+
+    // Expense section banner (Q1:T1)
+    ws.mergeCells('Q1:T1')
+    const expTitle = titleRow.getCell(17)
+    expTitle.value = `DAILY EXPENSES  ·  ${dateStr}`
+    expTitle.font  = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+    expTitle.fill  = fill(C.expDark)
+    expTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+    expTitle.border = borders(C.expDark, 'medium')
+
+    // ── Row 2 — Column headers ────────────────────────────────────────────────
+    const hRow = ws.getRow(2)
+    hRow.height = 22
+
+    const setH = (col: number, val: string, bgArgb = C.navyDark, textArgb = C.white) => {
       const cell = hRow.getCell(col)
-      cell.value = val
-      cell.font = headerFont
-      cell.fill = fill
-      cell.alignment = { horizontal: 'center', vertical: 'middle' }
-      cell.border = { bottom: { style: 'thin', color: { argb: 'FFAAAAAA' } } }
+      cell.value     = val
+      cell.font      = { bold: true, size: 9, color: { argb: textArgb }, name: 'Calibri' }
+      cell.fill      = fill(bgArgb)
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cell.border    = borders(bgArgb, 'medium')
     }
-    setH(1, 'SN'); setH(2, 'CONTAINER TYPE'); setH(3, 'WATER TYPE')
-    setH(4, 'QUANTITY'); setH(5, 'PRICE (PICK UP)'); setH(6, 'PRICE (DELIVER)')
-    setH(7, 'TOTAL')
-    setH(10, 'ALKALINE', subHeaderFill); setH(11, 'DELIVERED', subHeaderFill)
-    setH(12, 'PURIFIED', subHeaderFill); setH(13, 'DELIVERED', subHeaderFill)
-    setH(14, 'MINERAL', subHeaderFill);  setH(15, 'DELIVERED', subHeaderFill)
-    setH(17, 'SN'); setH(18, 'DESCRIPTION'); setH(19, 'TOTAL'); setH(20, 'REMARKS')
 
+    // Sales headers (cols 1-7)
+    setH(1, 'SN');             setH(2, 'CONTAINER TYPE')
+    setH(3, 'WATER TYPE');     setH(4, 'QTY')
+    setH(5, 'PICK UP\n(₱)');  setH(6, 'DELIVER\n(₱)')
+    setH(7, 'TOTAL\n(₱)')
+
+    // Price reference headers (cols 9-15)
+    setH(9,  'TYPE',      C.refDark); setH(10, 'ALKALINE\nPICKUP',  C.refDark)
+    setH(11, 'ALKALINE\nDELIVER', C.refDark)
+    setH(12, 'PURIFIED\nPICKUP',  C.refDark); setH(13, 'PURIFIED\nDELIVER', C.refDark)
+    setH(14, 'MINERAL\nPICKUP',   C.refDark); setH(15, 'MINERAL\nDELIVER',  C.refDark)
+
+    // Expense headers (cols 17-20)
+    setH(17, 'SN',          C.expDark); setH(18, 'DESCRIPTION', C.expDark)
+    setH(19, 'AMOUNT\n(₱)', C.expDark); setH(20, 'REMARKS',     C.expDark)
+
+    // Spacer cells
+    ws.getCell(2, 8).fill  = fill('FFF1F5F9')
+    ws.getCell(2, 16).fill = fill('FFF1F5F9')
+
+    // ── Data rows (3–32, i.e. 30 rows) ──────────────────────────────────────
     for (let i = 0; i < 30; i++) {
-      const rowNum = i + 2
-      const sale = daySales[i]
-      const exp = dayExpenses[i]
-      const row = ws.getRow(rowNum)
-      row.height = 16
+      const rowNum = i + 3       // data starts at row 3 (header is now rows 1+2)
+      const sale   = daySales[i]
+      const exp    = dayExpenses[i]
+      const row    = ws.getRow(rowNum)
+      row.height   = 16
 
+      const isEvenRow   = i % 2 === 1
+      const salesBg     = isEvenRow ? C.blueLight : C.white
+      const expBg       = isEvenRow ? C.expLight  : C.white
+      const refBg       = isEvenRow ? C.refLight  : C.white
+
+      // ── Sales section (A–G) ──────────────────────────────────────────────
+      // SN counter
       if (i === 0) {
         row.getCell(1).value = 1
       } else {
         row.getCell(1).value = { formula: `A${rowNum - 1}+1`, result: i + 1 } as any
       }
-      row.getCell(1).alignment = { horizontal: 'center' }
+
+      for (let c = 1; c <= 7; c++) {
+        const cell = row.getCell(c)
+        cell.fill   = fill(salesBg)
+        cell.border = borders(C.border)
+        cell.font   = { size: 10, name: 'Calibri' }
+      }
+      row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+      row.getCell(1).font = { size: 9, color: { argb: C.muted }, name: 'Calibri' }
 
       if (sale) {
-        row.getCell(2).value = sale.container_type_raw || ''
-        row.getCell(3).value = sale.water_type_raw || ''
-        row.getCell(4).value = Number(sale.quantity) || 0
-
         const unitPrice = Number(sale.unit_price) || getPrice(sale.container_type_raw, sale.water_type_raw || '', sale.mode)
         const isDeliver = sale.mode === 'deliver'
+
+        row.getCell(2).value = sale.container_type_raw || ''
+        row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' }
+        row.getCell(3).value = sale.water_type_raw || ''
+        row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' }
+        row.getCell(4).value = Number(sale.quantity) || 0
+        row.getCell(4).numFmt = '#,##0'
+        row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
 
         if (isDeliver) {
           row.getCell(5).value = 0
@@ -184,137 +298,180 @@ export async function buildDailyLogWorkbook(
           row.getCell(7).value = { formula: `E${rowNum}*D${rowNum}` } as any
         }
 
-        row.getCell(4).numFmt = '#,##0'
-        row.getCell(5).numFmt = '₱#,##0.00'
-        row.getCell(6).numFmt = '₱#,##0.00'
-        row.getCell(7).numFmt = '₱#,##0.00'
-        row.getCell(7).font = { bold: true }
+        row.getCell(5).numFmt = '#,##0.00'
+        row.getCell(6).numFmt = '#,##0.00'
+        row.getCell(7).numFmt = '#,##0.00'
+        row.getCell(7).font = { bold: true, size: 10, color: { argb: C.dark }, name: 'Calibri' }
+        row.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' }
+        row.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' }
+        row.getCell(7).alignment = { horizontal: 'right', vertical: 'middle' }
       } else {
         row.getCell(7).value = { formula: `E${rowNum}*D${rowNum}` } as any
-        row.getCell(7).numFmt = '₱#,##0.00'
+        row.getCell(7).numFmt = '#,##0.00'
+      }
+
+      // ── Price reference section (I–O) ────────────────────────────────────
+      for (let c = 9; c <= 15; c++) {
+        const cell = row.getCell(c)
+        cell.fill      = fill(refBg)
+        cell.border    = borders(C.border)
+        cell.font      = { size: 9, name: 'Calibri' }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
 
       if (i === 0) {
-        row.getCell(9).value = 'ROUND'
-        const rndAlk = priceRef['ROUND|ALKALINE']
-        const rndPur = priceRef['ROUND|PURIFIED']
-        const rndMin = priceRef['ROUND|MINERAL']
-        row.getCell(10).value = rndAlk?.pickup ?? 40
-        row.getCell(11).value = rndAlk?.deliver ?? 45
-        row.getCell(12).value = rndPur?.pickup ?? 30
-        row.getCell(13).value = rndPur?.deliver ?? 35
-        row.getCell(14).value = rndMin?.pickup ?? 25
-        row.getCell(15).value = rndMin?.deliver ?? 30
+        row.getCell(9).value = 'ROUND'; row.getCell(9).font = { bold: true, size: 9 }
+        const p = priceRef['ROUND|ALKALINE']; const p2 = priceRef['ROUND|PURIFIED']; const p3 = priceRef['ROUND|MINERAL']
+        row.getCell(10).value = p?.pickup ?? 40;  row.getCell(11).value = p?.deliver ?? 45
+        row.getCell(12).value = p2?.pickup ?? 30; row.getCell(13).value = p2?.deliver ?? 35
+        row.getCell(14).value = p3?.pickup ?? 25; row.getCell(15).value = p3?.deliver ?? 30
       } else if (i === 1) {
-        row.getCell(9).value = 'SLIM'
-        const slmAlk = priceRef['SLIM|ALKALINE']
-        const slmPur = priceRef['SLIM|PURIFIED']
-        const slmMin = priceRef['SLIM|MINERAL']
-        row.getCell(10).value = slmAlk?.pickup ?? 40
-        row.getCell(11).value = slmAlk?.deliver ?? 45
-        row.getCell(12).value = slmPur?.pickup ?? 30
-        row.getCell(13).value = slmPur?.deliver ?? 35
-        row.getCell(14).value = slmMin?.pickup ?? 25
-        row.getCell(15).value = slmMin?.deliver ?? 30
+        row.getCell(9).value = 'SLIM'; row.getCell(9).font = { bold: true, size: 9 }
+        const p = priceRef['SLIM|ALKALINE']; const p2 = priceRef['SLIM|PURIFIED']; const p3 = priceRef['SLIM|MINERAL']
+        row.getCell(10).value = p?.pickup ?? 40;  row.getCell(11).value = p?.deliver ?? 45
+        row.getCell(12).value = p2?.pickup ?? 30; row.getCell(13).value = p2?.deliver ?? 35
+        row.getCell(14).value = p3?.pickup ?? 25; row.getCell(15).value = p3?.deliver ?? 30
       } else if (i === 4) {
-        row.getCell(10).value = 'PER BOTTLE'
-        row.getCell(11).value = 'WHOLESALE'
+        row.getCell(10).value = 'PER BOTTLE'; row.getCell(11).value = 'WHOLESALE'
       } else if (i === 5) {
         row.getCell(9).value = '350ml'
-        const p350 = priceRef['350ML|PURIFIED'] || priceRef['350ML|ALKALINE']
-        row.getCell(10).value = p350?.pickup ?? 10
-        row.getCell(11).value = p350?.deliver ?? 8
+        const p = priceRef['350ML|PURIFIED'] || priceRef['350ML|ALKALINE']
+        row.getCell(10).value = p?.pickup ?? 10; row.getCell(11).value = p?.deliver ?? 8
         row.getCell(12).value = '50 BOTTLE'
       } else if (i === 6) {
         row.getCell(9).value = '500ml'
-        const p500 = priceRef['500ML|PURIFIED'] || priceRef['500ML|ALKALINE']
-        row.getCell(10).value = p500?.pickup ?? 12
-        row.getCell(11).value = p500?.deliver ?? 9
+        const p = priceRef['500ML|PURIFIED'] || priceRef['500ML|ALKALINE']
+        row.getCell(10).value = p?.pickup ?? 12; row.getCell(11).value = p?.deliver ?? 9
         row.getCell(12).value = 'MINIMUM'
       }
 
+      // Numeric format on price ref values
+      for (const c of [10,11,12,13,14,15]) {
+        if (typeof row.getCell(c).value === 'number') row.getCell(c).numFmt = '#,##0.00'
+      }
+
+      // ── Expenses section (Q–T) ───────────────────────────────────────────
       if (i === 0) {
         row.getCell(17).value = 1
       } else {
         row.getCell(17).value = { formula: `Q${rowNum - 1}+1`, result: i + 1 } as any
       }
-      row.getCell(17).alignment = { horizontal: 'center' }
+
+      for (let c = 17; c <= 20; c++) {
+        const cell = row.getCell(c)
+        cell.fill   = fill(expBg)
+        cell.border = borders(C.border)
+        cell.font   = { size: 10, name: 'Calibri' }
+      }
+      row.getCell(17).alignment = { horizontal: 'center', vertical: 'middle' }
+      row.getCell(17).font = { size: 9, color: { argb: C.muted }, name: 'Calibri' }
 
       if (exp) {
         row.getCell(18).value = exp.description || ''
+        row.getCell(18).alignment = { horizontal: 'left', vertical: 'middle' }
         row.getCell(19).value = Number(exp.total) || 0
-        row.getCell(19).numFmt = '₱#,##0.00'
+        row.getCell(19).numFmt = '#,##0.00'
+        row.getCell(19).alignment = { horizontal: 'right', vertical: 'middle' }
+        row.getCell(19).font = { bold: true, size: 10, name: 'Calibri' }
         row.getCell(20).value = exp.remarks || ''
+        row.getCell(20).alignment = { horizontal: 'left', vertical: 'middle' }
+        row.getCell(20).font = { italic: true, size: 9, color: { argb: C.muted }, name: 'Calibri' }
       }
 
-      if (i % 2 === 1 && sale) {
-        for (let c = 1; c <= 7; c++) {
-          row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F7FD' } }
-        }
-      }
+      // Spacer columns
+      ws.getCell(rowNum, 8).fill  = fill('FFF1F5F9')
+      ws.getCell(rowNum, 16).fill = fill('FFF1F5F9')
     }
 
-    const totRow = ws.getRow(32)
-    totRow.height = 20
-    totRow.font = { bold: true }
-    totRow.fill = totalsFill
-    totRow.getCell(4).value = { formula: 'SUM(D2:D31)' } as any
-    totRow.getCell(4).numFmt = '#,##0'
-    totRow.getCell(6).value = 'OVER ALL TOTAL FOR TODAY'
-    totRow.getCell(6).font = { bold: true, size: 10 }
-    totRow.getCell(6).alignment = { horizontal: 'right' }
-    totRow.getCell(7).value = { formula: 'SUM(G2:G31)' } as any
-    totRow.getCell(7).numFmt = '₱#,##0.00'
-    totRow.getCell(7).font = { bold: true, color: { argb: 'FFCC0000' } }
-    totRow.getCell(11).value = 'NET SALES FOR TODAY'
-    totRow.getCell(11).font = { bold: true }
-    totRow.getCell(11).alignment = { horizontal: 'right' }
-    totRow.getCell(12).value = { formula: 'SUM(G32-S32)' } as any
-    totRow.getCell(12).numFmt = '₱#,##0.00'
-    totRow.getCell(12).font = { bold: true, color: { argb: 'FF006600' } }
-    totRow.getCell(18).value = 'TOTAL EXPENSES FOR TODAY'
-    totRow.getCell(18).font = { bold: true }
-    totRow.getCell(18).alignment = { horizontal: 'right' }
-    totRow.getCell(19).value = { formula: 'SUM(S2:S31)' } as any
-    totRow.getCell(19).numFmt = '₱#,##0.00'
-    totRow.getCell(19).font = { bold: true, color: { argb: 'FFCC0000' } }
+    // ── Totals row (row 33 — after 30 data rows starting at row 3) ──────────
+    const totRowNum = 33
+    const totRow = ws.getRow(totRowNum)
+    totRow.height = 24
 
+    // Fill all columns navy
+    for (let c = 1; c <= 20; c++) {
+      const cell = totRow.getCell(c)
+      cell.fill   = fill(C.totBg)
+      cell.border = borders(C.navyDark, 'medium')
+      cell.font   = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+    }
+
+    // Qty total
+    totRow.getCell(4).value = { formula: 'SUM(D3:D32)' } as any
+    totRow.getCell(4).numFmt = '#,##0'
+    totRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+
+    // Sales total label + value
+    totRow.getCell(6).value = 'TOTAL SALES TODAY'
+    totRow.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' }
+    totRow.getCell(7).value = { formula: 'SUM(G3:G32)' } as any
+    totRow.getCell(7).numFmt = '#,##0.00'
+    totRow.getCell(7).font = { bold: true, size: 11, color: { argb: C.gold }, name: 'Calibri' }
+    totRow.getCell(7).alignment = { horizontal: 'right', vertical: 'middle' }
+
+    // Net sales label + value
+    totRow.getCell(11).value = 'NET SALES TODAY'
+    totRow.getCell(11).alignment = { horizontal: 'right', vertical: 'middle' }
+    totRow.getCell(12).value = { formula: `G${totRowNum}-S${totRowNum}` } as any
+    totRow.getCell(12).numFmt = '#,##0.00'
+    totRow.getCell(12).font = { bold: true, size: 11, color: { argb: 'FF86EFAC' }, name: 'Calibri' }
+    totRow.getCell(12).alignment = { horizontal: 'right', vertical: 'middle' }
+
+    // Expenses total label + value
+    totRow.getCell(18).value = 'TOTAL EXPENSES'
+    totRow.getCell(18).alignment = { horizontal: 'right', vertical: 'middle' }
+    totRow.getCell(19).value = { formula: 'SUM(S3:S32)' } as any
+    totRow.getCell(19).numFmt = '#,##0.00'
+    totRow.getCell(19).font = { bold: true, size: 11, color: { argb: 'FFFCA5A5' }, name: 'Calibri' }
+    totRow.getCell(19).alignment = { horizontal: 'right', vertical: 'middle' }
+
+    // ── Water & container type lookup rows ───────────────────────────────────
     const waterTypes = currentCfg.waterTypes.length > 0 ? currentCfg.waterTypes : ['ALKALINE', 'PURIFIED', 'MINERAL']
     const containerTypes = currentCfg.containerTypes.map(ct => ct.name)
-    waterTypes.forEach((wt, idx) => {
-      ws.getRow(49 + idx).getCell(2).value = wt
-    })
-    containerTypes.forEach((ct, idx) => {
-      ws.getRow(54 + idx).getCell(2).value = ct
-    })
+    waterTypes.forEach((wt, idx)    => { ws.getRow(49 + idx).getCell(2).value = wt })
+    containerTypes.forEach((ct, idx) => { ws.getRow(54 + idx).getCell(2).value = ct })
+
+    // ── Print header / footer ────────────────────────────────────────────────
+    ws.headerFooter.oddHeader = `&L&"Calibri,Bold"&11A&G WATER REFILLING STATION&R&"Calibri,Regular"&9${dayName}, ${monFull} ${dayPad}, ${year}`
+    ws.headerFooter.oddFooter = `&CPage &P of &N`
   }
 
+  // ── Monthly totals on the last day's sheet ────────────────────────────────
   const lastSheet = wb.getWorksheet(sheetNames[sheetNames.length - 1])!
-  const totalSalesFormula = sheetNames.map(sn => `'${sn}'!G32`).join('+')
-  const totalExpFormula   = sheetNames.map(sn => `'${sn}'!S32`).join('+')
+  const totalSalesFormula = sheetNames.map(sn => `'${sn}'!G33`).join('+')
+  const totalExpFormula   = sheetNames.map(sn => `'${sn}'!S33`).join('+')
 
-  const mTotRow = lastSheet.getRow(34)
-  mTotRow.height = 20
-  mTotRow.font = { bold: true }
-  mTotRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } }
-  mTotRow.getCell(6).value = 'TOTAL SALES FOR THIS MONTH'
-  mTotRow.getCell(6).font = { bold: true }
-  mTotRow.getCell(6).alignment = { horizontal: 'right' }
+  const mTotRowNum = 35
+  const mTotRow = lastSheet.getRow(mTotRowNum)
+  mTotRow.height = 26
+
+  for (let c = 1; c <= 20; c++) {
+    const cell = mTotRow.getCell(c)
+    cell.fill   = fill(C.monthBg)
+    cell.border = borders(C.monthBg, 'medium')
+    cell.font   = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+  }
+
+  mTotRow.getCell(6).value = `TOTAL SALES  ·  ${monFull} ${year}`
+  mTotRow.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' }
   mTotRow.getCell(7).value = { formula: totalSalesFormula } as any
-  mTotRow.getCell(7).numFmt = '₱#,##0.00'
-  mTotRow.getCell(7).font = { bold: true, color: { argb: 'FFCC0000' } }
-  mTotRow.getCell(11).value = 'NET SALES FOR THIS MONTH'
-  mTotRow.getCell(11).font = { bold: true }
-  mTotRow.getCell(11).alignment = { horizontal: 'right' }
-  mTotRow.getCell(12).value = { formula: `SUM(G34-S34)` } as any
-  mTotRow.getCell(12).numFmt = '₱#,##0.00'
-  mTotRow.getCell(12).font = { bold: true, color: { argb: 'FF006600' } }
-  mTotRow.getCell(18).value = 'TOTAL EXPENSES FOR THIS MONTH'
-  mTotRow.getCell(18).font = { bold: true }
-  mTotRow.getCell(18).alignment = { horizontal: 'right' }
+  mTotRow.getCell(7).numFmt = '#,##0.00'
+  mTotRow.getCell(7).font = { bold: true, size: 13, color: { argb: C.gold }, name: 'Calibri' }
+  mTotRow.getCell(7).alignment = { horizontal: 'right', vertical: 'middle' }
+
+  mTotRow.getCell(11).value = `NET SALES  ·  ${monFull} ${year}`
+  mTotRow.getCell(11).alignment = { horizontal: 'right', vertical: 'middle' }
+  mTotRow.getCell(12).value = { formula: `G${mTotRowNum}-S${mTotRowNum}` } as any
+  mTotRow.getCell(12).numFmt = '#,##0.00'
+  mTotRow.getCell(12).font = { bold: true, size: 13, color: { argb: 'FF86EFAC' }, name: 'Calibri' }
+  mTotRow.getCell(12).alignment = { horizontal: 'right', vertical: 'middle' }
+
+  mTotRow.getCell(18).value = `TOTAL EXPENSES  ·  ${monFull} ${year}`
+  mTotRow.getCell(18).alignment = { horizontal: 'right', vertical: 'middle' }
   mTotRow.getCell(19).value = { formula: totalExpFormula } as any
-  mTotRow.getCell(19).numFmt = '₱#,##0.00'
-  mTotRow.getCell(19).font = { bold: true, color: { argb: 'FFCC0000' } }
+  mTotRow.getCell(19).numFmt = '#,##0.00'
+  mTotRow.getCell(19).font = { bold: true, size: 13, color: { argb: 'FFFCA5A5' }, name: 'Calibri' }
+  mTotRow.getCell(19).alignment = { horizontal: 'right', vertical: 'middle' }
 
   const hasData = sales.length > 0 || expenses.length > 0
   return { wb, hasData }
@@ -329,10 +486,13 @@ export async function buildItemSalesWorkbook(
   _cfg?: ReturnType<typeof readConfig>
 ): Promise<{ wb: ExcelJS.Workbook; hasData: boolean }> {
   const monthPadded = String(month).padStart(2, '0')
-  const monthStr = `${year}-${monthPadded}`
   const startDate = `${year}-${monthPadded}-01`
   const lastDay = new Date(year, month, 0).getDate()
   const endDate = `${year}-${monthPadded}-${String(lastDay).padStart(2, '0')}`
+  const MONTHS_FULL  = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
+  const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+  const monFull  = MONTHS_FULL[month - 1]  || 'JANUARY'
+  const monShort = MONTHS_SHORT[month - 1] || 'JAN'
 
   let sales: any[] = []
   if (!isOnline()) {
@@ -344,96 +504,246 @@ export async function buildItemSalesWorkbook(
       unit_price_at_sale: r.unit_price_at_sale,
       discount: r.discount,
       remarks: r.remarks,
-      items: {
-        name: r.item_name,
-        code: r.item_code,
-        categories: { name: r.category_name }
-      }
+      items: { name: r.item_name, code: r.item_code, categories: { name: r.category_name } }
     }))
   } else {
     const sb = await getSupabase()
     const { data, error } = await sb
       .from('item_sales')
-      .select(`
-        date, quantity, unit_price_at_sale, discount, remarks,
-        items (
-          name, code, categories(name)
-        )
-      `)
-      .gte('date', startDate)
-      .lte('date', endDate)
+      .select('date, quantity, unit_price_at_sale, discount, remarks, items(name, code, categories(name))')
+      .gte('date', startDate).lte('date', endDate)
       .order('date', { ascending: true })
-
     if (error) throw new Error(error.message)
     sales = data || []
   }
 
-  const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('Item Sales', { properties: { tabColor: { argb: 'FF2563EB' } } })
-
-  ws.mergeCells('A1:H1')
-  ws.getCell('A1').value = `MONTHLY ITEM SALES REPORT — ${monthStr}`
-  ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
-  ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } }
-  ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' }
-  ws.getRow(1).height = 32
-
-  const headers = ['Date', 'Item Description', 'Category', 'Item Code', 'Price (₱)', 'Qty', 'Discount (₱)', 'Total Amount (₱)', 'Buyer / Remarks']
-  ws.getRow(2).values = headers
-  ws.getRow(2).font = { bold: true, color: { argb: 'FFFFFFFF' } }
-  ws.getRow(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }
-  ws.getRow(2).alignment = { vertical: 'middle', horizontal: 'center' }
-  ws.getRow(2).height = 24
-
-  let r = 3
-  let totalQty = 0
-  let grandTotal = 0
-
-  for (const s of sales || []) {
-    const itm = (s.items as any) || {}
-    const price = Number(s.unit_price_at_sale) || 0
-    const qty = Number(s.quantity) || 0
-    const discount = Number(s.discount) || 0
-    const total = (price * qty) - discount
-
-    totalQty += qty
-    grandTotal += total
-
-    const row = ws.getRow(r)
-    row.values = [
-      s.date,
-      itm.name || 'Item',
-      itm.categories?.name || '',
-      itm.code || '',
-      price,
-      qty,
-      discount,
-      total,
-      s.remarks || ''
-    ]
-
-    row.getCell(5).numFmt = '₱#,##0.00'
-    row.getCell(6).numFmt = '#,##0'
-    row.getCell(7).numFmt = '₱#,##0.00'
-    row.getCell(8).numFmt = '₱#,##0.00'
-    r++
+  // ── Palette ───────────────────────────────────────────────────────────────
+  const C = {
+    navyDark:   'FF1E3A8A',
+    blue:       'FF2563EB',
+    blueLight:  'FFE8F0FE',
+    rowEven:    'FFF0F5FF',
+    rowOdd:     'FFFFFFFF',
+    summaryBg:  'FFEFF6FF',
+    summaryHdr: 'FFBFDBFE',
+    netGreen:   'FFD1FAE5',
+    gold:       'FFFBBF24',
+    green:      'FF065F46',
+    border:     'FFB8C8E8',
+    white:      'FFFFFFFF',
+    dark:       'FF1E293B',
+    muted:      'FF64748B',
+    blue700:    'FF1D4ED8',
   }
 
-  // Summary Row
-  const sumRow = ws.getRow(r)
-  sumRow.values = ['TOTAL', '', '', '', '', totalQty, '', grandTotal, '']
-  sumRow.font = { bold: true }
-  sumRow.getCell(6).numFmt = '#,##0'
-  sumRow.getCell(8).numFmt = '₱#,##0.00'
-  sumRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }
+  const solidFill = (argb: string): ExcelJS.Fill =>
+    ({ type: 'pattern', pattern: 'solid', fgColor: { argb } })
 
-  ws.columns = [
-    { width: 14 }, { width: 35 }, { width: 18 }, { width: 15 },
-    { width: 14 }, { width: 10 }, { width: 14 }, { width: 18 }, { width: 25 }
+  const thinBorder = (color = C.border): Partial<ExcelJS.Borders> => ({
+    top:    { style: 'thin',   color: { argb: color } },
+    bottom: { style: 'thin',   color: { argb: color } },
+    left:   { style: 'thin',   color: { argb: color } },
+    right:  { style: 'thin',   color: { argb: color } },
+  })
+
+  const medBorder = (): Partial<ExcelJS.Borders> => ({
+    top:    { style: 'medium', color: { argb: C.navyDark } },
+    bottom: { style: 'medium', color: { argb: C.navyDark } },
+    left:   { style: 'medium', color: { argb: C.navyDark } },
+    right:  { style: 'medium', color: { argb: C.navyDark } },
+  })
+
+  // ── Workbook ──────────────────────────────────────────────────────────────
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'A&G Water Refill App'
+  wb.created = new Date()
+
+  const ws = wb.addWorksheet(`${monShort} ${year} ITEM SALES`, {
+    properties: { tabColor: { argb: C.blue } },
+    pageSetup: {
+      orientation: 'landscape',
+      fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.5, right: 0.5, top: 0.65, bottom: 0.65, header: 0.3, footer: 0.3 }
+    }
+  })
+
+  // Columns: #, Date, Item, Category, Code, Qty, Unit Price, Discount, Total, Remarks
+  const COL_W = [5, 14, 36, 18, 14, 10, 14, 14, 16, 28]
+  COL_W.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  const LAST_COL = 'J'
+  const N = 10
+
+  // ── Row 1 — Company banner ────────────────────────────────────────────────
+  ws.mergeCells(`A1:${LAST_COL}1`)
+  Object.assign(ws.getCell('A1'), {
+    value:     'A&G WATER REFILLING STATION',
+    font:      { bold: true, size: 16, color: { argb: C.white }, name: 'Calibri' },
+    fill:      solidFill(C.navyDark),
+    alignment: { vertical: 'middle', horizontal: 'center' },
+  })
+  ws.getRow(1).height = 36
+
+  // ── Row 2 — Report title ──────────────────────────────────────────────────
+  ws.mergeCells(`A2:${LAST_COL}2`)
+  Object.assign(ws.getCell('A2'), {
+    value:     `ITEM SALES REPORT  ·  ${monFull} ${year}`,
+    font:      { bold: true, size: 12, color: { argb: C.white }, name: 'Calibri' },
+    fill:      solidFill(C.blue),
+    alignment: { vertical: 'middle', horizontal: 'center' },
+  })
+  ws.getRow(2).height = 26
+
+  // ── Row 3 — Period / generated date ──────────────────────────────────────
+  ws.mergeCells(`A3:${LAST_COL}3`)
+  const genDate = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  Object.assign(ws.getCell('A3'), {
+    value:     `Period: ${startDate}  to  ${endDate}     |     Generated: ${genDate}`,
+    font:      { italic: true, size: 9, color: { argb: C.muted }, name: 'Calibri' },
+    fill:      solidFill(C.blueLight),
+    alignment: { vertical: 'middle', horizontal: 'center' },
+  })
+  ws.getRow(3).height = 17
+
+  // ── Row 4 — Column headers ────────────────────────────────────────────────
+  const HDR = ['#', 'Date', 'Item Description', 'Category', 'Code', 'Qty', 'Unit Price\n(₱)', 'Discount\n(₱)', 'Total\n(₱)', 'Remarks']
+  const hdrRow = ws.getRow(4)
+  hdrRow.height = 30
+  HDR.forEach((h, ci) => {
+    const cell = hdrRow.getCell(ci + 1)
+    cell.value     = h
+    cell.font      = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+    cell.fill      = solidFill(C.blue)
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.border    = medBorder()
+  })
+
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: N } }
+  ws.views = [{ state: 'frozen', ySplit: 4 }]
+
+  // ── Data rows ─────────────────────────────────────────────────────────────
+  let ri = 5
+  let totQty = 0, totDisc = 0, totNet = 0
+
+  sales.forEach((s, i) => {
+    const itm      = (s.items as any) || {}
+    const price    = Number(s.unit_price_at_sale) || 0
+    const qty      = Number(s.quantity) || 0
+    const discount = Number(s.discount) || 0
+    const total    = price * qty - discount
+    totQty += qty; totDisc += discount; totNet += total
+
+    const bg  = i % 2 === 0 ? C.rowEven : C.rowOdd
+    const row = ws.getRow(ri)
+    row.height = 17
+
+    const cells: [any, string, string?, boolean?][] = [
+      [i + 1,                                'center'],
+      [s.date,                               'center', 'yyyy-mm-dd'],
+      [itm.name || '',                       'left'],
+      [(itm.categories as any)?.name || '',  'left'],
+      [itm.code || '',                       'center'],
+      [qty,                                  'center', '#,##0'],
+      [price,                                'right',  '#,##0.00'],
+      [discount,                             'right',  '#,##0.00'],
+      [total,                                'right',  '#,##0.00', true],
+      [s.remarks || '',                      'left'],
+    ]
+
+    cells.forEach(([val, align, fmt, bold], ci) => {
+      const cell = row.getCell(ci + 1)
+      cell.value     = val
+      cell.fill      = solidFill(bg)
+      cell.border    = thinBorder()
+      cell.alignment = { horizontal: align as any, vertical: 'middle', wrapText: ci === 2 }
+      cell.font = {
+        size: 10, name: 'Calibri', bold: !!bold,
+        italic: ci === 9,
+        color: { argb: ci === 9 ? C.muted : ci === 8 ? C.blue700 : C.dark },
+      }
+      if (fmt) cell.numFmt = fmt
+    })
+
+    ri++
+  })
+
+  // ── Totals row ────────────────────────────────────────────────────────────
+  ws.mergeCells(`A${ri}:E${ri}`)
+  const totRow = ws.getRow(ri)
+  totRow.height = 26
+
+  const setTot = (col: number, val: any, fmt?: string, color = C.white) => {
+    const cell = totRow.getCell(col)
+    cell.value     = val
+    cell.fill      = solidFill(C.navyDark)
+    cell.border    = medBorder()
+    cell.font      = { bold: true, size: 11, color: { argb: color }, name: 'Calibri' }
+    cell.alignment = { horizontal: fmt ? 'right' : col === 1 ? 'right' : 'center', vertical: 'middle' }
+    if (fmt) cell.numFmt = fmt
+  }
+
+  setTot(1,  `TOTALS  (${sales.length} item${sales.length !== 1 ? 's' : ''} sold)`)
+  setTot(6,  totQty,  '#,##0')
+  setTot(7,  null)
+  setTot(8,  totDisc, '#,##0.00', C.gold)
+  setTot(9,  totNet,  '#,##0.00', C.gold)
+  setTot(10, null)
+  ri++
+
+  // ── Spacer ────────────────────────────────────────────────────────────────
+  ri++
+
+  // ── Summary block ─────────────────────────────────────────────────────────
+  ws.mergeCells(`A${ri}:${LAST_COL}${ri}`)
+  Object.assign(ws.getCell(`A${ri}`), {
+    value:     'MONTHLY SUMMARY',
+    font:      { bold: true, size: 11, color: { argb: C.navyDark }, name: 'Calibri' },
+    fill:      solidFill(C.summaryHdr),
+    alignment: { horizontal: 'center', vertical: 'middle' },
+    border:    medBorder(),
+  })
+  ws.getRow(ri).height = 22
+  ri++
+
+  const gross = totNet + totDisc
+  const summaryData: [string, any, string?][] = [
+    ['Total Transactions',  sales.length,  undefined],
+    ['Total Units Sold',    totQty,        '#,##0'],
+    ['Gross Sales',         gross,         '#,##0.00'],
+    ['Total Discounts',     totDisc,       '#,##0.00'],
+    ['Net Sales Revenue',   totNet,        '#,##0.00'],
   ]
 
-  const hasData = sales && sales.length > 0
-  return { wb, hasData }
+  summaryData.forEach(([label, value, fmt], si) => {
+    const isNet = si === summaryData.length - 1
+    const rowBg = si % 2 === 0 ? C.summaryBg : C.rowOdd
+    const sr = ws.getRow(ri)
+    sr.height = 20
+
+    ws.mergeCells(`A${ri}:F${ri}`)
+    const lc = sr.getCell(1)
+    lc.value     = label
+    lc.font      = { size: 10, bold: isNet, color: { argb: C.dark }, name: 'Calibri' }
+    lc.fill      = solidFill(rowBg)
+    lc.alignment = { horizontal: 'right', vertical: 'middle' }
+    lc.border    = thinBorder()
+
+    ws.mergeCells(`G${ri}:${LAST_COL}${ri}`)
+    const vc = sr.getCell(7)
+    vc.value     = value
+    if (fmt) vc.numFmt = fmt
+    vc.font      = { bold: true, size: isNet ? 12 : 10, name: 'Calibri', color: { argb: isNet ? C.green : C.dark } }
+    vc.fill      = solidFill(isNet ? C.netGreen : rowBg)
+    vc.alignment = { horizontal: 'right', vertical: 'middle' }
+    vc.border    = thinBorder()
+
+    ri++
+  })
+
+  // ── Print header / footer ─────────────────────────────────────────────────
+  ws.headerFooter.oddHeader = `&C&"Calibri,Bold"&14A&G WATER REFILLING STATION\n&"Calibri,Regular"&10Item Sales Report — ${monFull} ${year}`
+  ws.headerFooter.oddFooter = `&LGenerated: ${genDate}&RPage &P of &N`
+
+  return { wb, hasData: sales.length > 0 }
 }
 
 /**
