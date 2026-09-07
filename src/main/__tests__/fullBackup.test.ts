@@ -56,14 +56,16 @@ describe('Full Historical Backup — Workbook Builders', () => {
     expect(wb).toBeDefined()
     expect(typeof hasData).toBe('boolean')
 
-    const ws = wb.getWorksheet('Item Sales')
+    const ws = wb.worksheets[0]
     expect(ws).toBeDefined()
-    expect(ws?.getCell('A1').value).toBe('MONTHLY ITEM SALES REPORT — 2026-09')
-    const headers = ws?.getRow(2).values as string[]
-    expect(headers).toContain('Date')
-    expect(headers).toContain('Item Description')
-    expect(headers).toContain('Price (₱)')
-    expect(headers).toContain('Total Amount (₱)')
+    expect(ws?.name).toBe('SEP 2026 ITEM SALES')
+    expect(ws?.getCell('A1').value).toBe('A&G WATER REFILLING STATION')
+    expect(ws?.getCell('A2').value).toContain('ITEM SALES REPORT')
+    const headers = (ws?.getRow(4).values as any[]).map(v => String(v))
+    expect(headers.some(h => h.includes('Date'))).toBe(true)
+    expect(headers.some(h => h.includes('Item Description'))).toBe(true)
+    expect(headers.some(h => h.includes('Unit Price'))).toBe(true)
+    expect(headers.some(h => h.includes('Total'))).toBe(true)
   })
 
   it('builds a Stock Report workbook with 5 relational sheets', async () => {

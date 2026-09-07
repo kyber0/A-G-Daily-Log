@@ -21,229 +21,227 @@ let currentConfig: AppConfig | null = null
 type Screen = 'entry' | 'history' | 'analytics' | 'settings' | 'logs' | 'inventory' | 'item-sales' | 'sales-report'
 let activeScreen: Screen = 'entry'
 
-// ─── Update Modal & Progress Pill ─────────────────────────────────────────────
+// ─── Top-Right Update Prompt & Download Bar ──────────────────────────────────
 let _dismissedUpdateVersion = ''
 
-function showUpdateModal(payload: any): void {
-  const existing = document.getElementById('update-modal-overlay')
-  if (existing) existing.remove()
+function handleUpdateStatus(payload: any): void {
+  if (!payload || !payload.status) return
 
+  let panel = document.getElementById('update-panel')
   const ver = payload.availableVersion || ''
   const currentVer = payload.currentVersion || ''
   const isDownloaded = payload.status === 'downloaded'
+  const isDownloading = payload.status === 'downloading'
+  const isAvailable = payload.status === 'available'
 
-  // Don't re-show if the user already dismissed this version (unless ready to install)
-  if (_dismissedUpdateVersion === ver && !isDownloaded) return
-
-  const overlay = document.createElement('div')
-  overlay.id = 'update-modal-overlay'
-
-  // Format release notes
-  let notesHtml = ''
-  if (payload.releaseNotes && typeof payload.releaseNotes === 'string') {
-    const lines = payload.releaseNotes.split('\n').map((l: string) => l.trim()).filter(Boolean)
-    const bulletItems = lines.map((l: string) => {
-      const clean = l.replace(/^[\*\-\•]\s*/, '')
-      return `<li>${clean}</li>`
-    }).join('')
-    notesHtml = `<ul class="update-modal-notes-list">${bulletItems}</ul>`
-  } else {
-    notesHtml = `
-      <ul class="update-modal-notes-list">
-        <li>Includes the latest system performance improvements and bug fixes.</li>
-        <li>Automated silent background updates and encrypted security hardening.</li>
-        <li>Enhanced Google Drive backups and cloud synchronization.</li>
-      </ul>
-    `
-  }
-
-  overlay.innerHTML = `
-    <div class="update-modal">
-      <div class="update-modal-glow"></div>
-      <button class="update-modal-close-btn" id="update-modal-close" title="Dismiss">&times;</button>
-
-      <div class="update-modal-header">
-        <div class="update-modal-icon-badge">
-          ${isDownloaded ? `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-          ` : `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2v8m0 0l-3-3m3 3l3-3"/>
-              <rect x="3" y="14" width="18" height="8" rx="3"/>
-            </svg>
-          `}
-        </div>
-
-        <div class="update-modal-badge-pill">
-          <span class="update-modal-pulse-dot" style="${isDownloaded ? 'background:#10b981;box-shadow:0 0 8px #10b981;' : ''}"></span>
-          <span>${isDownloaded ? 'READY TO INSTALL' : 'NEW UPDATE AVAILABLE'}</span>
-        </div>
-
-        <h2 class="update-modal-title">
-          ${isDownloaded ? 'Update Ready to Install' : `A&G Daily Log v${ver}`}
-        </h2>
-
-        <div class="update-modal-versions">
-          ${currentVer ? `<span class="update-version-badge update-version-old">Current: v${currentVer}</span>` : ''}
-          <span class="update-version-arrow">➔</span>
-          <span class="update-version-badge update-version-new">New: v${ver}</span>
-        </div>
-      </div>
-
-      <div class="update-modal-body">
-        <div class="update-modal-notes-card">
-          <div class="update-modal-notes-header">
-            ${Icons.clipboardList}
-            <span>Release Highlights</span>
-          </div>
-          ${notesHtml}
-        </div>
-
-        <p class="update-modal-hint">
-          ${isDownloaded
-            ? 'The update is completely downloaded. Click <strong>Restart &amp; Install</strong> to apply it instantly in the background.'
-            : 'Accepting will download the update quietly in the top-right corner. You can continue using the app without interruption.'}
-        </p>
-      </div>
-
-      <div class="update-modal-actions">
-        ${isDownloaded ? `
-          <button id="update-modal-later" class="btn btn-ghost update-btn-later">Later</button>
-          <button id="update-modal-install" class="btn btn-primary update-btn-accept" style="background:linear-gradient(135deg, #10b981, #059669);box-shadow:0 4px 16px rgba(16,185,129,0.35);">
-            ${Icons.refreshCw} Restart &amp; Install Now
-          </button>
-        ` : `
-          <button id="update-modal-later" class="btn btn-ghost update-btn-later">Remind Me Later</button>
-          <button id="update-modal-accept" class="btn btn-primary update-btn-accept">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Accept &amp; Download Update
-          </button>
-        `}
-      </div>
-    </div>
-  `
-
-  document.body.appendChild(overlay)
-
-  const closeModal = () => {
-    overlay.classList.add('closing')
-    setTimeout(() => overlay.remove(), 200)
-  }
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      _dismissedUpdateVersion = ver
-      closeModal()
-    }
-  })
-
-  document.getElementById('update-modal-close')?.addEventListener('click', () => {
-    _dismissedUpdateVersion = ver
-    closeModal()
-  })
-
-  document.getElementById('update-modal-later')?.addEventListener('click', () => {
-    _dismissedUpdateVersion = ver
-    closeModal()
-  })
-
-  document.getElementById('update-modal-accept')?.addEventListener('click', async () => {
-    _dismissedUpdateVersion = ver
-    closeModal()
-    showToast(`Downloading update v${ver}...`, 'info')
-    await window.api.downloadUpdate()
-  })
-
-  document.getElementById('update-modal-install')?.addEventListener('click', async () => {
-    closeModal()
-    showToast('Restarting application to apply update...', 'info')
-    await window.api.installUpdate()
-  })
-}
-
-function updateProgressPill(payload: any): void {
-  let pill = document.getElementById('update-progress-pill')
-
-  if (payload?.status !== 'downloading' && payload?.status !== 'downloaded') {
-    pill?.remove()
+  // If dismissed and not downloading/downloaded, ignore
+  if (_dismissedUpdateVersion === ver && isAvailable) {
+    panel?.remove()
     return
   }
 
-  if (!pill) {
-    pill = document.createElement('div')
-    pill.id = 'update-progress-pill'
-    document.body.appendChild(pill)
+  // If status is idle, checking, not-available, or error -> remove floating panel
+  if (!isAvailable && !isDownloading && !isDownloaded) {
+    if (panel) {
+      panel.classList.add('closing')
+      setTimeout(() => panel?.remove(), 250)
+    }
+    return
   }
 
-  const ver = payload.availableVersion || ''
+  // If panel doesn't exist, create it
+  if (!panel) {
+    panel = document.createElement('div')
+    panel.id = 'update-panel'
+    document.body.appendChild(panel)
+  }
 
-  if (payload.status === 'downloaded') {
-    pill.innerHTML = `
-      <div class="upp-ready-card">
-        <div class="upp-header-left">
-          <div class="upp-ready-badge">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-          <div class="upp-titles">
-            <span class="upp-title">Update Ready</span>
-            <span class="upp-sub">v${ver} downloaded</span>
-          </div>
+  // If already downloading and the progress DOM is already there, update in-place!
+  if (isDownloading && panel.dataset.state === 'downloading') {
+    const pct = Math.min(100, Math.max(0, Math.round(payload.progress?.percent ?? 0)))
+    const mbps = payload.progress?.bytesPerSecond
+      ? `${(payload.progress.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
+      : ''
+    const transferred = payload.progress?.transferred
+      ? `${(payload.progress.transferred / (1024 * 1024)).toFixed(1)} MB`
+      : ''
+    const total = payload.progress?.total
+      ? `${(payload.progress.total / (1024 * 1024)).toFixed(1)} MB`
+      : ''
+
+    const fillEl = document.getElementById('up-fill')
+    const pctEl = document.getElementById('up-pct')
+    const detailsEl = document.getElementById('up-details')
+    const speedEl = document.getElementById('up-speed')
+    const trackEl = document.getElementById('up-track')
+
+    if (fillEl && pctEl && detailsEl && speedEl && trackEl) {
+      if (pct > 0) {
+        trackEl.classList.remove('indeterminate')
+        fillEl.style.width = `${pct}%`
+      } else {
+        trackEl.classList.add('indeterminate')
+      }
+      pctEl.textContent = `${pct}%`
+      detailsEl.textContent = transferred && total ? `${transferred} / ${total}` : 'Downloading in background…'
+      speedEl.textContent = mbps
+      return
+    }
+  }
+
+  // 1. STATE: AVAILABLE (Prompt First in Upper-Right Corner)
+  if (isAvailable) {
+    panel.dataset.state = 'available'
+    panel.innerHTML = `
+      <button class="up-close-btn" id="up-close-btn" title="Dismiss">&times;</button>
+      <div class="up-header">
+        <div class="up-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v8m0 0l-3-3m3 3l3-3"/>
+            <rect x="3" y="14" width="18" height="8" rx="3"/>
+          </svg>
         </div>
-        <button id="upp-btn-restart" class="upp-ready-btn">Restart Now</button>
+        <div class="up-titles">
+          <div class="up-badge-pill">
+            <span class="up-pulse-dot"></span>
+            <span>NEW UPDATE AVAILABLE</span>
+          </div>
+          <span class="up-title">A&G Daily Log v${ver}</span>
+        </div>
+      </div>
+
+      <div class="up-body">
+        <div class="up-version-row">
+          ${currentVer ? `<span class="up-ver-tag up-ver-old">Current: v${currentVer}</span>` : ''}
+          <span class="up-ver-arrow">➔</span>
+          <span class="up-ver-tag up-ver-new">New: v${ver}</span>
+        </div>
+        <p class="up-desc">A new version is ready. Would you like to download and install this update now?</p>
+      </div>
+
+      <div class="up-actions">
+        <button id="up-btn-later" class="btn btn-ghost up-btn-later">Later</button>
+        <button id="up-btn-download" class="btn btn-primary up-btn-accept">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download Update
+        </button>
       </div>
     `
-    document.getElementById('upp-btn-restart')?.addEventListener('click', async () => {
-      pill?.remove()
-      await window.api.installUpdate()
+
+    const dismiss = () => {
+      _dismissedUpdateVersion = ver
+      panel.classList.add('closing')
+      setTimeout(() => panel.remove(), 250)
+    }
+
+    document.getElementById('up-close-btn')?.addEventListener('click', dismiss)
+    document.getElementById('up-btn-later')?.addEventListener('click', dismiss)
+
+    document.getElementById('up-btn-download')?.addEventListener('click', async () => {
+      // Immediately switch to downloading state in the same panel
+      handleUpdateStatus({
+        ...payload,
+        status: 'downloading',
+        progress: { percent: 0, bytesPerSecond: 0, transferred: 0, total: 0 }
+      })
+      showToast(`Downloading update v${ver}...`, 'info')
+      await window.api.downloadUpdate()
     })
     return
   }
 
-  // Downloading state
-  const pct = Math.min(100, Math.max(0, Math.round(payload.progress?.percent ?? 0)))
-  const mbps = payload.progress?.bytesPerSecond
-    ? `${(payload.progress.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
-    : ''
-  const transferred = payload.progress?.transferred
-    ? `${(payload.progress.transferred / (1024 * 1024)).toFixed(1)} MB`
-    : ''
-  const total = payload.progress?.total
-    ? `${(payload.progress.total / (1024 * 1024)).toFixed(1)} MB`
-    : ''
+  // 2. STATE: DOWNLOADING (Smooth progress bar in Upper-Right Corner)
+  if (isDownloading) {
+    panel.dataset.state = 'downloading'
+    const pct = Math.min(100, Math.max(0, Math.round(payload.progress?.percent ?? 0)))
+    const mbps = payload.progress?.bytesPerSecond
+      ? `${(payload.progress.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
+      : ''
+    const transferred = payload.progress?.transferred
+      ? `${(payload.progress.transferred / (1024 * 1024)).toFixed(1)} MB`
+      : ''
+    const total = payload.progress?.total
+      ? `${(payload.progress.total / (1024 * 1024)).toFixed(1)} MB`
+      : ''
 
-  pill.innerHTML = `
-    <div class="upp-header">
-      <div class="upp-header-left">
-        <div class="upp-icon-box">
+    panel.innerHTML = `
+      <div class="up-header">
+        <div class="up-icon-box up-icon-pulse">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <polyline points="19 12 12 19 5 12"/>
           </svg>
         </div>
-        <div class="upp-titles">
-          <span class="upp-title">Downloading Update</span>
-          <span class="upp-sub">v${ver || 'latest'}</span>
+        <div class="up-titles">
+          <span class="up-title">Downloading Update</span>
+          <span class="up-sub">v${ver || 'latest'}</span>
+        </div>
+        <div id="up-pct" class="up-pct">${pct}%</div>
+      </div>
+
+      <div id="up-track" class="up-track ${pct === 0 ? 'indeterminate' : ''}">
+        <div id="up-fill" class="up-fill" style="width: ${pct}%"></div>
+      </div>
+
+      <div class="up-footer">
+        <span id="up-details">${transferred && total ? `${transferred} / ${total}` : 'Downloading in background…'}</span>
+        <span id="up-speed" class="up-speed">${mbps}</span>
+      </div>
+    `
+    return
+  }
+
+  // 3. STATE: DOWNLOADED (Ready to install)
+  if (isDownloaded) {
+    panel.dataset.state = 'downloaded'
+    panel.innerHTML = `
+      <div class="up-header">
+        <div class="up-icon-box up-icon-success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="up-titles">
+          <div class="up-badge-pill up-badge-success">
+            <span class="up-pulse-dot up-dot-success"></span>
+            <span>READY TO INSTALL</span>
+          </div>
+          <span class="up-title">Update Ready!</span>
         </div>
       </div>
-      <div class="upp-pct">${pct}%</div>
-    </div>
-    <div class="upp-track">
-      <div class="upp-fill" style="width:${pct}%"></div>
-    </div>
-    <div class="upp-footer">
-      <span>${transferred && total ? `${transferred} / ${total}` : 'Downloading…'}</span>
-      ${mbps ? `<span class="upp-speed">${mbps}</span>` : ''}
-    </div>
-  `
+
+      <div class="up-body">
+        <p class="up-desc">Version v${ver} has finished downloading. Restart the app now to apply the update immediately.</p>
+      </div>
+
+      <div class="up-actions">
+        <button id="up-btn-ready-later" class="btn btn-ghost up-btn-later">Later</button>
+        <button id="up-btn-restart" class="btn btn-primary up-btn-accept up-btn-success">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Restart Now
+        </button>
+      </div>
+    `
+
+    document.getElementById('up-btn-ready-later')?.addEventListener('click', () => {
+      panel.classList.add('closing')
+      setTimeout(() => panel.remove(), 250)
+    })
+
+    document.getElementById('up-btn-restart')?.addEventListener('click', async () => {
+      showToast('Restarting application to apply update...', 'info')
+      await window.api.installUpdate()
+    })
+    return
+  }
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -253,17 +251,17 @@ async function boot(): Promise<void> {
   // Initialize offline/online connectivity banner
   initConnectivityBanner()
 
-  // Global update notifications
+  // Global update notifications (Top-right corner panel)
   window.api.on('update:status', (payload: any) => {
-    // Always update the progress pill
-    updateProgressPill(payload)
-
-    if (payload?.status === 'available') {
-      showUpdateModal(payload)
-    } else if (payload?.status === 'downloaded') {
-      showUpdateModal(payload)
-    }
+    handleUpdateStatus(payload)
   })
+
+  // Check initial update state on startup
+  window.api.getUpdateState().then((res: any) => {
+    if (res?.ok && res?.data) {
+      handleUpdateStatus(res.data)
+    }
+  }).catch(() => {})
 
   // 1. Load config
   const configResult = await window.api.getSettings()
