@@ -179,6 +179,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('update:getState'),
   checkForUpdates: (): Promise<IpcResult<{ updateAvailable: boolean; version?: string; message?: string }>> =>
     ipcRenderer.invoke('update:check'),
+  downloadUpdate: (): Promise<IpcResult<void>> =>
+    ipcRenderer.invoke('update:download'),
   installUpdate: (): Promise<IpcResult<void>> =>
     ipcRenderer.invoke('update:install'),
 

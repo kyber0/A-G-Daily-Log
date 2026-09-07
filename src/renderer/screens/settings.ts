@@ -1387,6 +1387,23 @@ export function renderSettingsScreen(
                   </div>
                 </div>
 
+                ${updateState.status === 'available' ? `
+                  <div style="padding:16px 20px;border-radius:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      <div style="width:36px;height:36px;border-radius:50%;background:rgba(245,158,11,0.15);color:#d97706;display:flex;align-items:center;justify-content:center;">
+                        ${Icons.download}
+                      </div>
+                      <div>
+                        <div style="font-size:14px;font-weight:800;color:var(--clr-text);">New Update v${updateState.availableVersion || ''} Available!</div>
+                        <div style="font-size:12px;color:var(--clr-text-muted);">Ready to download and install.</div>
+                      </div>
+                    </div>
+                    <button id="btn-download-update" class="btn btn-primary" style="font-weight:700;display:flex;align-items:center;gap:8px;padding:9px 18px;cursor:pointer;">
+                      ${Icons.download} Download Update
+                    </button>
+                  </div>
+                ` : ''}
+
                 ${updateState.status === 'downloading' ? `
                   <div style="padding:16px 20px;border-radius:12px;background:rgba(14,165,233,0.06);border:1px solid rgba(14,165,233,0.25);display:flex;flex-direction:column;gap:10px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -2162,7 +2179,7 @@ export function renderSettingsScreen(
         const res = await window.api.checkForUpdates()
         if (res.ok) {
           if (res.data?.updateAvailable) {
-            showToast(`New update v${res.data.version || ''} found! Starting download...`, 'info')
+            showToast(`New update v${res.data.version || ''} found!`, 'info')
           } else {
             showToast(res.data?.message || 'You are running the latest version.', 'success')
           }
@@ -2172,6 +2189,13 @@ export function renderSettingsScreen(
       } catch (err: any) {
         showToast(`Update check failed: ${err?.message || err}`, 'error')
       }
+    })
+
+    q('#btn-download-update')?.addEventListener('click', async () => {
+      const btn = q<HTMLButtonElement>('#btn-download-update')
+      if (btn) btn.disabled = true
+      showToast('Starting update download...', 'info')
+      await window.api.downloadUpdate()
     })
 
     q('#btn-install-update')?.addEventListener('click', async () => {

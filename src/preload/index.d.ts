@@ -108,6 +108,7 @@ export interface ElectronApi {
   getAppVersion: () => Promise<string>
   getUpdateState: () => Promise<IpcResult<any>>
   checkForUpdates: () => Promise<IpcResult<{ updateAvailable: boolean; version?: string; message?: string }>>
+  downloadUpdate: () => Promise<IpcResult<void>>
   installUpdate: () => Promise<IpcResult<void>>
 
   on: (channel: string, callback: (...args: any[]) => void) => () => void

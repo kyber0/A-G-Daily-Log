@@ -94,6 +94,7 @@ declare global {
       getAppVersion: () => Promise<string>
       getUpdateState: () => Promise<import('../../shared/types').IpcResult<any>>
       checkForUpdates: () => Promise<import('../../shared/types').IpcResult<{ updateAvailable: boolean; version?: string; message?: string }>>
+      downloadUpdate: () => Promise<import('../../shared/types').IpcResult<void>>
       installUpdate: () => Promise<import('../../shared/types').IpcResult<void>>
 
       on: (channel: string, callback: (...args: any[]) => void) => () => void

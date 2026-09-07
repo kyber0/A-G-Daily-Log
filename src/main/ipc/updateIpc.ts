@@ -119,6 +119,39 @@ export function registerUpdateIpc(): void {
     }
   })
 
+  // Trigger download of update upon user acceptance
+  ipcMain.handle('update:download', async (): Promise<IpcResult<void>> => {
+    console.log('[autoUpdater] Download requested by user')
+    if (updateState.status === 'downloading') {
+      return { ok: true, data: undefined }
+    }
+    try {
+      updateState = {
+        ...updateState,
+        status: 'downloading',
+        error: undefined,
+        progress: {
+          percent: 0,
+          bytesPerSecond: 0,
+          transferred: 0,
+          total: 0
+        }
+      }
+      broadcastState()
+      await autoUpdater.downloadUpdate()
+      return { ok: true, data: undefined }
+    } catch (err: any) {
+      console.error('[autoUpdater] downloadUpdate failed:', err)
+      updateState = {
+        ...updateState,
+        status: 'error',
+        error: err?.message || 'Failed to download update'
+      }
+      broadcastState()
+      return { ok: false, error: err?.message || 'Failed to download update' }
+    }
+  })
+
   // Restart and apply the downloaded update
   ipcMain.handle('update:install', async (): Promise<IpcResult<void>> => {
     console.log('[autoUpdater] Restart & Install requested')
@@ -144,7 +177,7 @@ export function initAutoUpdater(): void {
   isInitialized = true
 
   try {
-    autoUpdater.autoDownload = true
+    autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.allowPrerelease = false
 
