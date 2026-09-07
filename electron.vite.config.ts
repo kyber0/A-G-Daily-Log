@@ -12,7 +12,9 @@ export default defineConfig({
     define: {
       // Vite reads .env automatically — SUPABASE_URL is safe to inject as default endpoint.
       // Never inject service role keys or secrets into the client build.
-      'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || '')
+      'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || ''),
+      'process.env.GOOGLE_CLIENT_ID': JSON.stringify(process.env.GOOGLE_CLIENT_ID || ''),
+      'process.env.GOOGLE_CLIENT_SECRET': JSON.stringify(process.env.GOOGLE_CLIENT_SECRET || '')
     },
     build: {
       rollupOptions: {

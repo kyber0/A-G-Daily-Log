@@ -1248,6 +1248,27 @@ export function renderSettingsScreen(
                       `
                   }
                 </div>
+
+                <!-- Custom Google OAuth Credentials -->
+                <details style="margin-top:14px;background:var(--clr-surface-1);border:1px solid var(--clr-border);border-radius:10px;padding:12px 14px;">
+                  <summary style="font-size:12px;color:var(--clr-text-muted);font-weight:600;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
+                    ${Icons.settings || '⚙'} Custom Google OAuth Credentials (Optional)
+                  </summary>
+                  <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+                    <div>
+                      <label style="font-size:11px;font-weight:600;color:var(--clr-text-muted);display:block;margin-bottom:4px;">Google Client ID</label>
+                      <input type="text" id="inp-google-client-id" class="st-input" placeholder="Built-in application default" value="${cfg.googleClientId || ''}" style="width:100%;font-size:12px;font-family:monospace;">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;font-weight:600;color:var(--clr-text-muted);display:block;margin-bottom:4px;">Google Client Secret</label>
+                      <input type="password" id="inp-google-client-secret" class="st-input" placeholder="Built-in application default" value="${cfg.googleClientSecret || ''}" style="width:100%;font-size:12px;font-family:monospace;">
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;">
+                      <span style="font-size:11px;color:var(--clr-text-muted);">Leave empty to use built-in application defaults. Encrypted at rest.</span>
+                      <button type="button" id="btn-save-google-creds" class="btn btn-secondary btn-sm">Save Credentials</button>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
 
@@ -2023,7 +2044,31 @@ export function renderSettingsScreen(
       }
     })
 
+    q('#btn-save-google-creds')?.addEventListener('click', async () => {
+      const clientId = q<HTMLInputElement>('#inp-google-client-id')?.value.trim() || ''
+      const clientSecret = q<HTMLInputElement>('#inp-google-client-secret')?.value.trim() || ''
+      cfg.googleClientId = clientId
+      cfg.googleClientSecret = clientSecret
+      await persistConfig()
+      showToast('Google OAuth credentials saved.', 'success')
+    })
+
     q('#btn-drive-connect')?.addEventListener('click', async () => {
+      const clientId = q<HTMLInputElement>('#inp-google-client-id')?.value.trim()
+      const clientSecret = q<HTMLInputElement>('#inp-google-client-secret')?.value.trim()
+      let credsChanged = false
+      if (clientId !== undefined && clientId !== (cfg.googleClientId || '')) {
+        cfg.googleClientId = clientId
+        credsChanged = true
+      }
+      if (clientSecret !== undefined && clientSecret !== (cfg.googleClientSecret || '')) {
+        cfg.googleClientSecret = clientSecret
+        credsChanged = true
+      }
+      if (credsChanged) {
+        await persistConfig()
+      }
+
       const btn = q<HTMLButtonElement>('#btn-drive-connect')
       if (btn) btn.textContent = 'Connecting…'
       const res = await window.api.driveAuth()

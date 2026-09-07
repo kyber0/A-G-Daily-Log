@@ -98,14 +98,30 @@ export function registerInventoryIpc(): void {
         const catName = (item.category || 'CONTAINERS').trim()
         const catId = catMap.get(catName.toUpperCase()) || null
 
-        // Check if item exists by name or code
-        const { data: existing } = await sb
-          .from('items')
-          .select('id')
-          .or(`name.ilike."${item.description.replace(/"/g, '')}"${item.itemCode ? `,code.ilike."${item.itemCode.replace(/"/g, '')}"` : ''}`)
-          .limit(1)
+        // Check if item exists by code first (if provided), then by name (parameterized, injection-safe)
+        let existingId: string | null = null
+        if (item.itemCode && item.itemCode.trim()) {
+          const { data: byCode } = await sb
+            .from('items')
+            .select('id')
+            .eq('code', item.itemCode.trim())
+            .limit(1)
+          if (byCode && byCode.length > 0) {
+            existingId = byCode[0].id
+          }
+        }
+        if (!existingId && item.description && item.description.trim()) {
+          const { data: byName } = await sb
+            .from('items')
+            .select('id')
+            .ilike('name', item.description.trim())
+            .limit(1)
+          if (byName && byName.length > 0) {
+            existingId = byName[0].id
+          }
+        }
 
-        if (existing && existing.length > 0) {
+        if (existingId) {
           await sb
             .from('items')
             .update({
@@ -114,7 +130,7 @@ export function registerInventoryIpc(): void {
               srp: item.price || 0,
               updated_at: new Date().toISOString()
             })
-            .eq('id', existing[0].id)
+            .eq('id', existingId)
         } else {
           await sb
             .from('items')

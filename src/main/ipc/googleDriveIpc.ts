@@ -5,9 +5,9 @@ import * as http from 'http'
 import { google } from 'googleapis'
 import type { IpcResult, DriveStatus } from '../../shared/types'
 
-// Client credentials — pull from runtime environment / local config, never hardcode secrets in source
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
+import { readConfig } from '../store/config'
+import { DEFAULT_GOOGLE_CLIENT_ID, DEFAULT_GOOGLE_CLIENT_SECRET } from '../google/constants'
+
 const REDIRECT_URI = 'http://localhost:3000'
 
 const SCOPES = [
@@ -17,16 +17,48 @@ const SCOPES = [
 
 const TOKEN_PATH = path.join(app.getPath('userData'), 'google_auth.json')
 
-let oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI)
+export function getGoogleCredentials(): { clientId: string; clientSecret: string } {
+  const cfg = readConfig()
+  const clientId = (cfg.googleClientId && cfg.googleClientId.trim()) || DEFAULT_GOOGLE_CLIENT_ID
+  const clientSecret = (cfg.googleClientSecret && cfg.googleClientSecret.trim()) || DEFAULT_GOOGLE_CLIENT_SECRET
+  return { clientId, clientSecret }
+}
 
-// Load saved tokens if they exist
-if (fs.existsSync(TOKEN_PATH)) {
-  try {
-    const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'))
-    oauth2Client.setCredentials(tokens)
-  } catch (err) {
-    console.error('[drive] Failed to load Google tokens', err)
+let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null
+let currentClientId = ''
+let currentClientSecret = ''
+
+export function getOAuth2Client(): InstanceType<typeof google.auth.OAuth2> {
+  const { clientId, clientSecret } = getGoogleCredentials()
+
+  if (!oauth2Client || currentClientId !== clientId || currentClientSecret !== clientSecret) {
+    oauth2Client = new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI)
+    currentClientId = clientId
+    currentClientSecret = clientSecret
+
+    // Load saved tokens if they exist
+    if (fs.existsSync(TOKEN_PATH)) {
+      try {
+        const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8'))
+        oauth2Client.setCredentials(tokens)
+      } catch (err) {
+        console.error('[drive] Failed to load Google tokens', err)
+      }
+    }
+
+    // Auto-save refreshed tokens when Google rotates access/refresh tokens
+    oauth2Client.on('tokens', (tokens) => {
+      try {
+        const existing = fs.existsSync(TOKEN_PATH) ? JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf-8')) : {}
+        const merged = { ...existing, ...tokens }
+        fs.writeFileSync(TOKEN_PATH, JSON.stringify(merged, null, 2), 'utf-8')
+      } catch (err) {
+        console.error('[drive] Failed to save refreshed tokens', err)
+      }
+    })
   }
+
+  return oauth2Client
 }
 
 // In-memory cache for folder IDs to prevent redundant API calls & duplicate folder creation
@@ -35,11 +67,12 @@ const folderIdCache = new Map<string, string>()
 export function registerGoogleDriveIpc(): void {
   ipcMain.handle('drive:status', async (): Promise<IpcResult<DriveStatus>> => {
     try {
-      if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+      const client = getOAuth2Client()
+      if (!client.credentials || !client.credentials.access_token) {
         return { ok: true, data: { connected: false, email: null } }
       }
       
-      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+      const oauth2 = google.oauth2({ version: 'v2', auth: client })
       const res = await oauth2.userinfo.get()
       return { ok: true, data: { connected: true, email: res.data.email || 'Unknown' } }
     } catch (err: any) {
@@ -48,9 +81,11 @@ export function registerGoogleDriveIpc(): void {
   })
 
   ipcMain.handle('drive:auth', async (): Promise<IpcResult<DriveStatus>> => {
-    if (!CLIENT_ID || !CLIENT_SECRET) {
+    const { clientId, clientSecret } = getGoogleCredentials()
+    if (!clientId || !clientSecret) {
       return { ok: false, error: 'Google OAuth Client ID and Secret are not configured.' }
     }
+    const client = getOAuth2Client()
     return new Promise((resolve) => {
       let isSettled = false
       let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -70,12 +105,12 @@ export function registerGoogleDriveIpc(): void {
           if (code) {
             res.end('<h1>Authentication successful!</h1><p>You can close this tab and return to the app.</p><script>window.close()</script>')
             
-            const { tokens } = await oauth2Client.getToken(code)
-            oauth2Client.setCredentials(tokens)
+            const { tokens } = await client.getToken(code)
+            client.setCredentials(tokens)
             
-            fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens))
+            fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2))
             
-            const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+            const oauth2 = google.oauth2({ version: 'v2', auth: client })
             const userInfo = await oauth2.userinfo.get()
             
             safeResolve({ ok: true, data: { connected: true, email: userInfo.data.email || 'Unknown' } })
@@ -99,7 +134,7 @@ export function registerGoogleDriveIpc(): void {
       }, 120_000)
       
       server.listen(3000, () => {
-        const authUrl = oauth2Client.generateAuthUrl({
+        const authUrl = client.generateAuthUrl({
           access_type: 'offline',
           scope: SCOPES,
           prompt: 'consent'
@@ -115,7 +150,12 @@ export function registerGoogleDriveIpc(): void {
       if (fs.existsSync(TOKEN_PATH)) {
         fs.unlinkSync(TOKEN_PATH)
       }
-      oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI)
+      if (oauth2Client) {
+        oauth2Client.setCredentials({})
+      }
+      oauth2Client = null
+      currentClientId = ''
+      currentClientSecret = ''
       return { ok: true, data: undefined }
     } catch (err: any) {
       return { ok: false, error: err.message }
@@ -168,10 +208,11 @@ async function getOrCreateDriveFolder(drive: any, folderPath: string): Promise<s
 
 /** Uploads a single file to Drive with atomic update if already exists */
 export async function uploadToDrive(localPath: string, driveFolderPath: string): Promise<boolean> {
-  if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) return false
+  const client = getOAuth2Client()
+  if (!client.credentials || !client.credentials.access_token) return false
   if (!fs.existsSync(localPath)) return false
 
-  const drive = google.drive({ version: 'v3', auth: oauth2Client })
+  const drive = google.drive({ version: 'v3', auth: client })
 
   try {
     const parentId = await getOrCreateDriveFolder(drive, driveFolderPath)

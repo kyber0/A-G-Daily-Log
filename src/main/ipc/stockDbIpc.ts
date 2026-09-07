@@ -538,10 +538,16 @@ export function registerStockDbIpc(): void {
 
       let itemId = mov.itemId
 
-      // If itemId is a name or code, resolve uuid
+      // If itemId is a name or code, resolve uuid safely using parameterized queries
       if (itemId && !itemId.includes('-')) {
-        const { data: itm } = await sb.from('items').select('id').or(`code.ilike."${itemId}",name.ilike."${itemId}"`).limit(1)
-        if (itm && itm.length > 0) itemId = itm[0].id
+        const trimmed = itemId.trim()
+        const { data: byCode } = await sb.from('items').select('id').eq('code', trimmed).limit(1)
+        if (byCode && byCode.length > 0) {
+          itemId = byCode[0].id
+        } else {
+          const { data: byName } = await sb.from('items').select('id').ilike('name', trimmed).limit(1)
+          if (byName && byName.length > 0) itemId = byName[0].id
+        }
       }
 
       // Resolve buyer

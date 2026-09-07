@@ -28,6 +28,8 @@ export interface AppConfig {
   supabaseAnonKey?: string
   appAccountEmail?: string
   appAccountPassword?: string
+  googleClientId?: string
+  googleClientSecret?: string
 }
 
 // ─── Sale entry ───────────────────────────────────────────────────────────────

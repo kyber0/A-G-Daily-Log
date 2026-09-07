@@ -1,9 +1,10 @@
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import type { AppConfig } from '../../shared/types'
 import { resetSupabaseClient } from '../supabase/client'
 import { DEFAULT_SUPABASE_URL } from '../supabase/constants'
+import { DEFAULT_GOOGLE_CLIENT_ID, DEFAULT_GOOGLE_CLIENT_SECRET } from '../google/constants'
 
 function getConfigPath(): string {
   try {
@@ -26,6 +27,8 @@ const DEFAULT_CONFIG: AppConfig = {
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
   appAccountEmail: process.env.SUPABASE_APP_EMAIL || '',
   appAccountPassword: process.env.SUPABASE_APP_PASSWORD || '',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID,
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || DEFAULT_GOOGLE_CLIENT_SECRET,
   containerTypes: [
     { name: 'SLIM',          requiresWaterType: true  },
     { name: 'ROUND',         requiresWaterType: true  },
@@ -71,13 +74,59 @@ export function readConfig(): AppConfig {
   if (_cache) return _cache
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
+    const parsed = JSON.parse(raw)
+
+    // Decrypt appAccountPassword if encrypted with safeStorage
+    let password = parsed.appAccountPassword || ''
+    if (parsed.appAccountPasswordEncrypted) {
+      try {
+        if (typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+          password = safeStorage.decryptString(Buffer.from(parsed.appAccountPasswordEncrypted, 'base64'))
+        }
+      } catch (err) {
+        console.warn('[config] safeStorage decryption failed:', err)
+        password = parsed.appAccountPassword || ''
+      }
+    }
+
+    // Decrypt googleClientSecret if encrypted with safeStorage
+    let googleSecret = parsed.googleClientSecret || ''
+    if (parsed.googleClientSecretEncrypted) {
+      try {
+        if (typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+          googleSecret = safeStorage.decryptString(Buffer.from(parsed.googleClientSecretEncrypted, 'base64'))
+        }
+      } catch (err) {
+        console.warn('[config] safeStorage Google secret decryption failed:', err)
+        googleSecret = parsed.googleClientSecret || ''
+      }
+    }
+
     // Merge defaults so new fields appear automatically on existing installs
-    _cache = { ...DEFAULT_CONFIG, ...JSON.parse(raw) } as AppConfig
+    _cache = {
+      ...DEFAULT_CONFIG,
+      ...parsed,
+      appAccountPassword: password,
+      googleClientSecret: googleSecret || DEFAULT_GOOGLE_CLIENT_SECRET
+    } as AppConfig
     delete (_cache as any).supabaseServiceKey
+    delete (_cache as any).appAccountPasswordEncrypted
+    delete (_cache as any).googleClientSecretEncrypted
     if (!_cache.supabaseUrl) _cache.supabaseUrl = DEFAULT_SUPABASE_URL
     if (!_cache.supabaseAnonKey && process.env.SUPABASE_ANON_KEY) {
       _cache.supabaseAnonKey = process.env.SUPABASE_ANON_KEY
     }
+    if (!_cache.googleClientId) _cache.googleClientId = DEFAULT_GOOGLE_CLIENT_ID
+
+    // If password or Google secret was stored unencrypted on disk, migrate to encrypted at rest
+    const needsMigration = (parsed.appAccountPassword && !parsed.appAccountPasswordEncrypted) ||
+                           (parsed.googleClientSecret && !parsed.googleClientSecretEncrypted)
+    if (needsMigration && typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+      try {
+        writeConfig(_cache)
+      } catch {}
+    }
+
     return _cache
   } catch {
     return { ...DEFAULT_CONFIG }
@@ -88,8 +137,33 @@ export function writeConfig(cfg: AppConfig): void {
   if (!cfg.supabaseUrl) cfg.supabaseUrl = DEFAULT_SUPABASE_URL
   delete (cfg as any).supabaseServiceKey
   const prev = _cache
+
+  // Prepare disk payload with encrypted credentials
+  const toSave: any = { ...cfg }
+  if (cfg.appAccountPassword) {
+    try {
+      if (typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+        toSave.appAccountPasswordEncrypted = safeStorage.encryptString(cfg.appAccountPassword).toString('base64')
+        delete toSave.appAccountPassword
+      }
+    } catch (err) {
+      console.warn('[config] safeStorage encryption failed, saving plaintext fallback:', err)
+    }
+  }
+
+  if (cfg.googleClientSecret) {
+    try {
+      if (typeof safeStorage !== 'undefined' && safeStorage?.isEncryptionAvailable?.()) {
+        toSave.googleClientSecretEncrypted = safeStorage.encryptString(cfg.googleClientSecret).toString('base64')
+        delete toSave.googleClientSecret
+      }
+    } catch (err) {
+      console.warn('[config] safeStorage Google secret encryption failed, saving plaintext fallback:', err)
+    }
+  }
+
   fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true })
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf-8')
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(toSave, null, 2), 'utf-8')
   _cache = cfg
 
   // If Supabase credentials changed, invalidate the cached client so it

@@ -3,9 +3,17 @@ import type { AppConfig, SaleRow, IpcResult, DraftPayload, DayTarget, HistoryDay
 
 const listenerMap = new Map<(...args: any[]) => void, (_event: any, ...args: any[]) => void>()
 
+// Whitelist of allowed inbound IPC channels from main process
+const ALLOWED_RECEIVE_CHANNELS = new Set([
+  'connectivity:change',
+  'sync:dead-items',
+  'sync:complete',
+  'update:status'
+])
+
 // Expose a locked-down API surface to the renderer — no raw Node access.
 contextBridge.exposeInMainWorld('api', {
-  // â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Settings ──────────────────────────────────────────────────────────────────
   getSettings: (): Promise<IpcResult<AppConfig>> =>
     ipcRenderer.invoke('getSettings'),
 
@@ -24,7 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   openSaveFolder: (): Promise<void> =>
     ipcRenderer.invoke('openSaveFolder'),
 
-  // â”€â”€ Day operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Day operations ────────────────────────────────────────────────────────────
   loadDay: (date: string): Promise<IpcResult<SaleRow[]>> =>
     ipcRenderer.invoke('loadDay', date),
 
@@ -57,14 +65,14 @@ contextBridge.exposeInMainWorld('api', {
   clearDraft: (date: string): Promise<void> =>
     ipcRenderer.invoke('clearDraft', date),
 
-  // â”€â”€ History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── History ───────────────────────────────────────────────────────────────────
   listHistory: (): Promise<IpcResult<HistoryDay[]>> =>
     ipcRenderer.invoke('history:listDays'),
 
   loadHistoryDay: (date: string): Promise<IpcResult<SaleRow[]>> =>
     ipcRenderer.invoke('history:loadDay', date),
 
-  // â”€â”€ Backup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Backup ────────────────────────────────────────────────────────────────────
   chooseBackupFolder: (): Promise<IpcResult<string>> =>
     ipcRenderer.invoke('backup:chooseFolder'),
 
@@ -77,7 +85,7 @@ contextBridge.exposeInMainWorld('api', {
   openBackupFolder: (): Promise<void> =>
     ipcRenderer.invoke('backup:openFolder'),
 
-  // â”€â”€ Google Drive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Google Drive ──────────────────────────────────────────────────────────────
   driveStatus: (): Promise<IpcResult<DriveStatus>> =>
     ipcRenderer.invoke('drive:status'),
 
@@ -90,7 +98,7 @@ contextBridge.exposeInMainWorld('api', {
   getBackupFolder: (): Promise<IpcResult<string>> =>
     ipcRenderer.invoke('backup:getFolder'),
 
-  // â”€â”€ Logs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Logs ──────────────────────────────────────────────────────────────────────
   appendLog: (action: string, details: string): Promise<void> =>
     ipcRenderer.invoke('log:append', action, details),
 
@@ -175,6 +183,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('update:install'),
 
   on: (channel: string, callback: (...args: any[]) => void): (() => void) => {
+    if (!ALLOWED_RECEIVE_CHANNELS.has(channel)) {
+      console.warn(`[preload] Blocked unauthorized subscription to IPC channel: "${channel}"`)
+      return () => {}
+    }
     const wrapper = (_event: Electron.IpcRendererEvent, ...args: any[]) => callback(...args)
     listenerMap.set(callback, wrapper)
     ipcRenderer.on(channel, wrapper)
@@ -184,6 +196,7 @@ contextBridge.exposeInMainWorld('api', {
     }
   },
   removeListener: (channel: string, callback: (...args: any[]) => void): void => {
+    if (!ALLOWED_RECEIVE_CHANNELS.has(channel)) return
     const wrapper = listenerMap.get(callback)
     if (wrapper) {
       ipcRenderer.removeListener(channel, wrapper)

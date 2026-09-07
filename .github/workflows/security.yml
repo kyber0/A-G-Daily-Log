@@ -1,0 +1,47 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 6am UTC
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  electron-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx -y @doyensec/electronegativity -i . -o electronegativity-report.sarif
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electronegativity-report
+          path: electronegativity-report.sarif
+
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

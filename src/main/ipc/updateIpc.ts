@@ -129,7 +129,7 @@ export function registerUpdateIpc(): void {
     // Give renderer brief moment before quit
     setTimeout(() => {
       try {
-        autoUpdater.quitAndInstall(false, true)
+        autoUpdater.quitAndInstall(true, true)
       } catch (err: any) {
         console.error('[autoUpdater] quitAndInstall error:', err)
       }
