@@ -1205,6 +1205,44 @@ export function renderSettingsScreen(
               </div>
             </div>
 
+            <!-- Full Historical Database Backup -->
+            <div class="st-card">
+              <div class="st-card-header">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,0.12);color:var(--clr-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    ${Icons.archive}
+                  </div>
+                  <div>
+                    <h3 style="margin:0;font-size:15px;font-weight:700;">Full Historical Backup (2022 – Present)</h3>
+                    <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">Export all database logs (Daily Logs, Item Sales, Stock Reports) with duplicate protection</div>
+                  </div>
+                </div>
+                ${cfg.backupFolder ? `<button id="btn-run-full-backup" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;">${Icons.archive} Backup All History</button>` : ''}
+              </div>
+              <div class="st-card-body">
+                <p style="margin:0;font-size:13px;color:var(--clr-text-muted);line-height:1.5;">
+                  Generates complete Excel files for all records stored in the database from 2022 to the current date into organized folders (<strong>A&G Daily Logs/YYYY</strong>, <strong>Item Sales/YYYY</strong>, and <strong>Stock Report</strong>). Existing backup files are automatically skipped so nothing is duplicated. Synchronizes with Google Drive if connected.
+                </p>
+
+                <!-- Progress container -->
+                <div id="full-backup-progress-container" style="display:none;margin-top:14px;padding:16px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div id="full-backup-status-phase" style="font-size:13px;font-weight:700;color:var(--clr-text);display:flex;align-items:center;gap:8px;">
+                      <span id="full-backup-spinner" class="spinner" style="width:14px;height:14px;display:inline-block;"></span>
+                      <span id="full-backup-phase-text">Preparing backup...</span>
+                    </div>
+                    <span id="full-backup-progress-pct" style="font-size:12px;font-weight:700;color:var(--clr-primary);font-family:monospace;">0%</span>
+                  </div>
+                  <div style="width:100%;height:8px;border-radius:4px;background:var(--clr-border);overflow:hidden;margin-bottom:8px;">
+                    <div id="full-backup-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg, #2563eb, #3b82f6);transition:width 0.2s ease;border-radius:4px;"></div>
+                  </div>
+                  <div id="full-backup-status-msg" style="font-size:12px;color:var(--clr-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    Analyzing records...
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Google Drive Cloud Backup -->
             <div class="st-card">
               <div class="st-card-header">
@@ -2056,6 +2094,92 @@ export function renderSettingsScreen(
           showToast('Backup failed: ' + res.error, 'error')
         }
       } finally {
+        btn.innerHTML = origText
+        btn.disabled = false
+      }
+    })
+
+    q('#btn-run-full-backup')?.addEventListener('click', async () => {
+      const btn = q<HTMLButtonElement>('#btn-run-full-backup')
+      if (!btn) return
+      const origText = btn.innerHTML
+      btn.innerHTML = `<span class="spinner" style="width:14px;height:14px;display:inline-block;"></span> Backing up...`
+      btn.disabled = true
+
+      const container = q<HTMLElement>('#full-backup-progress-container')
+      const phaseText = q<HTMLElement>('#full-backup-phase-text')
+      const pctEl = q<HTMLElement>('#full-backup-progress-pct')
+      const barEl = q<HTMLElement>('#full-backup-progress-bar')
+      const msgEl = q<HTMLElement>('#full-backup-status-msg')
+      const spinnerEl = q<HTMLElement>('#full-backup-spinner')
+
+      if (container) container.style.display = 'block'
+      if (spinnerEl) spinnerEl.style.display = 'inline-block'
+      if (phaseText) phaseText.textContent = 'Initializing backup...'
+      if (pctEl) pctEl.textContent = '0%'
+      if (barEl) barEl.style.width = '0%'
+      if (msgEl) msgEl.textContent = 'Scanning database records from 2022 to present...'
+
+      // Listen to progress updates
+      const unsubscribe = window.api.on('backup:progress', (data: any) => {
+        if (!data) return
+        if (msgEl && data.message) msgEl.textContent = data.message
+
+        if (data.phase === 'daily') {
+          if (phaseText) phaseText.textContent = `Daily Logs (${data.current || 0}/${data.total || 0})`
+          if (data.total && data.current) {
+            const pct = Math.round(((data.current) / data.total) * 40)
+            if (pctEl) pctEl.textContent = `${pct}%`
+            if (barEl) barEl.style.width = `${pct}%`
+          }
+        } else if (data.phase === 'sales') {
+          if (phaseText) phaseText.textContent = `Item Sales (${data.current || 0}/${data.total || 0})`
+          if (data.total && data.current) {
+            const pct = 40 + Math.round(((data.current) / data.total) * 35)
+            if (pctEl) pctEl.textContent = `${pct}%`
+            if (barEl) barEl.style.width = `${pct}%`
+          }
+        } else if (data.phase === 'stock') {
+          if (phaseText) phaseText.textContent = `Stock Report`
+          if (pctEl) pctEl.textContent = '80%'
+          if (barEl) barEl.style.width = '80%'
+        } else if (data.phase === 'drive') {
+          if (phaseText) phaseText.textContent = `Google Drive Sync (${data.current || 0}/${data.total || 0})`
+          if (data.total && data.current) {
+            const pct = 80 + Math.round(((data.current) / data.total) * 20)
+            if (pctEl) pctEl.textContent = `${pct}%`
+            if (barEl) barEl.style.width = `${pct}%`
+          }
+        } else if (data.phase === 'done') {
+          if (phaseText) phaseText.textContent = `Backup Complete`
+          if (pctEl) pctEl.textContent = '100%'
+          if (barEl) barEl.style.width = '100%'
+          if (spinnerEl) spinnerEl.style.display = 'none'
+        }
+      })
+
+      try {
+        const res = await window.api.createFullBackup()
+        if (res.ok) {
+          const info = res.data
+          const driveMsg = info.driveUploaded ? `, ${info.driveUploaded} uploaded to Google Drive` : ''
+          showToast(`Full backup complete! ${info.filesCopied} new file(s) created, ${info.skipped || 0} skipped${driveMsg}.`, 'success')
+          if (phaseText) phaseText.textContent = 'Backup completed successfully'
+          if (msgEl) msgEl.textContent = `All records saved to ${info.backupPath}`
+          if (pctEl) pctEl.textContent = '100%'
+          if (barEl) barEl.style.width = '100%'
+          if (spinnerEl) spinnerEl.style.display = 'none'
+        } else {
+          showToast('Full backup failed: ' + res.error, 'error')
+          if (phaseText) phaseText.textContent = 'Backup failed'
+          if (msgEl) msgEl.textContent = res.error || 'An error occurred during backup'
+          if (spinnerEl) spinnerEl.style.display = 'none'
+        }
+      } catch (err: any) {
+        showToast('Full backup error: ' + (err?.message || err), 'error')
+        if (spinnerEl) spinnerEl.style.display = 'none'
+      } finally {
+        unsubscribe()
         btn.innerHTML = origText
         btn.disabled = false
       }

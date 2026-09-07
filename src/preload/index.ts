@@ -8,7 +8,8 @@ const ALLOWED_RECEIVE_CHANNELS = new Set([
   'connectivity:change',
   'sync:dead-items',
   'sync:complete',
-  'update:status'
+  'update:status',
+  'backup:progress'
 ])
 
 // Expose a locked-down API surface to the renderer — no raw Node access.
@@ -81,6 +82,9 @@ contextBridge.exposeInMainWorld('api', {
 
   createBackup: (): Promise<IpcResult<BackupResult>> =>
     ipcRenderer.invoke('backup:create'),
+
+  createFullBackup: (): Promise<IpcResult<BackupResult>> =>
+    ipcRenderer.invoke('backup:fullBackup'),
 
   openBackupFolder: (): Promise<void> =>
     ipcRenderer.invoke('backup:openFolder'),

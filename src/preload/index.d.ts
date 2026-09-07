@@ -38,6 +38,7 @@ export interface ElectronApi {
   chooseBackupFolder: () => Promise<IpcResult<string>>
   clearBackupFolder: () => Promise<IpcResult<void>>
   createBackup: () => Promise<IpcResult<BackupResult>>
+  createFullBackup: () => Promise<IpcResult<BackupResult>>
   openBackupFolder: () => Promise<void>
   getBackupFolder: () => Promise<IpcResult<string>>
 

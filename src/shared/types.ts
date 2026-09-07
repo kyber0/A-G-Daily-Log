@@ -94,6 +94,17 @@ export interface BackupResult {
   backupPath: string
   filesCopied: number
   timestamp: string
+  skipped?: number
+  driveUploaded?: number
+}
+
+export interface FullBackupProgress {
+  phase: 'daily' | 'sales' | 'stock' | 'drive' | 'done'
+  current?: number
+  total?: number
+  month?: string
+  file?: string
+  message?: string
 }
 
 // ─── Google Drive ─────────────────────────────────────────────────────────────
