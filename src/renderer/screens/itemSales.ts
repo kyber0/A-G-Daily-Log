@@ -292,11 +292,32 @@ export function renderItemSalesScreen(
     } catch {}
   })
 
+  /** Hides the extra last row in flatpickr when all 7 cells are nextMonthDay placeholders */
+  function trimExtraFpRow(fp: any): void {
+    if (!fp?.calendarContainer) return
+    const days = Array.from<HTMLElement>(fp.calendarContainer.querySelectorAll('.flatpickr-day'))
+    days.forEach(d => (d.style.display = ''))
+    const last7 = days.slice(-7)
+    if (last7.length === 7 && last7.every(d => d.classList.contains('nextMonthDay'))) {
+      last7.forEach(d => (d.style.display = 'none'))
+    }
+  }
+
   // ── Date Pickers ───────────────────────────────────────────────────────────
-  flatpickr(elDate, { defaultDate: today, maxDate: 'today', dateFormat: 'Y-m-d' })
+  flatpickr(elDate, {
+    defaultDate: today,
+    maxDate: 'today',
+    dateFormat: 'Y-m-d',
+    disableMobile: true,
+    onReady: (_, __, fp) => trimExtraFpRow(fp),
+    onMonthChange: (_, __, fp) => trimExtraFpRow(fp),
+    onYearChange: (_, __, fp) => trimExtraFpRow(fp)
+  })
 
   flatpickr(elMonthPicker, {
     defaultDate: currentMonth,
+    maxDate: 'today',
+    disableMobile: true,
     plugins: [monthSelectPlugin({ shorthand: true, dateFormat: 'Y-m', altFormat: 'F Y' })],
     onChange: (_: Date[], dateStr: string) => {
       if (!dateStr || dateStr === currentMonth) return

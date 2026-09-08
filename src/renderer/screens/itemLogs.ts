@@ -164,6 +164,7 @@ export function renderItemLogsScreen(container: HTMLElement): void {
       })
     ],
     defaultDate: currentMonth,
+    maxDate: 'today',
     disableMobile: true,
     onChange: () => loadLogs()
   })

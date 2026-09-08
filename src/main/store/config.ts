@@ -120,6 +120,7 @@ export function readConfig(): AppConfig {
       _cache.supabaseAnonKey = process.env.SUPABASE_ANON_KEY
     }
     if (!_cache.googleClientId) _cache.googleClientId = DEFAULT_GOOGLE_CLIENT_ID
+    if (!_cache.googleClientSecret) _cache.googleClientSecret = DEFAULT_GOOGLE_CLIENT_SECRET
 
     // If password or Google secret was stored unencrypted on disk, migrate to encrypted at rest
     const needsMigration = (parsed.appAccountPassword && !parsed.appAccountPasswordEncrypted) ||

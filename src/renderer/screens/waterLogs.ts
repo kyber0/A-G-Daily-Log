@@ -169,6 +169,7 @@ export function renderWaterLogsScreen(container: HTMLElement): void {
       })
     ],
     defaultDate: currentMonth,
+    maxDate: 'today',
     disableMobile: true,
     onChange: () => {
       loadLogs()

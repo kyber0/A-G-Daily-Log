@@ -6,6 +6,17 @@ import monthSelectPlugin from 'flatpickr/dist/plugins/monthSelect/index.js'
 import 'flatpickr/dist/flatpickr.min.css'
 import 'flatpickr/dist/plugins/monthSelect/style.css'
 
+function formatTime12(timeStr: string): string {
+  if (!timeStr) return '7:00 PM'
+  const [hStr, mStr] = timeStr.split(':')
+  let h = parseInt(hStr, 10)
+  if (isNaN(h)) return timeStr
+  const m = (mStr || '00').padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return `${h}:${m} ${ampm}`
+}
+
 export function renderSettingsScreen(
   container: HTMLElement,
   config: AppConfig,
@@ -229,6 +240,9 @@ export function renderSettingsScreen(
         .st-grid-table tr:last-child td {
           border-bottom: none;
         }
+        .st-grid-table tbody tr:nth-child(even) td {
+          background: rgba(255,255,255,0.012);
+        }
         .st-tag-pill {
           display: inline-flex;
           align-items: center;
@@ -347,8 +361,8 @@ export function renderSettingsScreen(
           flex-wrap: wrap;
         }
         .st-filter-btn {
-          padding: 6px 14px;
-          border-radius: 8px;
+          padding: 5px 14px;
+          border-radius: 20px;
           font-size: 12px;
           font-weight: 600;
           border: 1px solid var(--clr-border);
@@ -363,12 +377,125 @@ export function renderSettingsScreen(
         .st-filter-btn:hover {
           background: var(--clr-surface-3);
           color: var(--clr-text);
+          border-color: rgba(255,255,255,0.12);
         }
         .st-filter-btn.active {
           background: var(--clr-primary);
           color: #ffffff;
           border-color: var(--clr-primary);
           box-shadow: 0 2px 8px var(--clr-primary-glow);
+        }
+        /* Custom Dropdown Filter UI */
+        .st-dropdown-wrap {
+          position: relative;
+          display: inline-flex;
+        }
+        .st-dropdown-trigger {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
+          border: 1px solid var(--clr-border);
+          background: var(--clr-surface-2);
+          color: var(--clr-text-muted);
+          cursor: pointer;
+          transition: all 0.15s ease;
+          user-select: none;
+          white-space: nowrap;
+        }
+        .st-dropdown-trigger:hover {
+          background: var(--clr-surface-3);
+          color: var(--clr-text);
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        .st-dropdown-trigger.active {
+          background: var(--clr-primary-glow);
+          color: var(--clr-primary);
+          border-color: var(--clr-primary);
+          box-shadow: 0 0 0 2px var(--clr-primary-glow);
+        }
+        .st-dropdown-trigger .st-chevron {
+          display: flex;
+          align-items: center;
+          transition: transform 0.2s ease;
+        }
+        .st-dropdown-wrap.open .st-dropdown-trigger .st-chevron {
+          transform: rotate(180deg);
+        }
+        .st-dropdown-menu {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          z-index: 100;
+          min-width: 220px;
+          max-height: 280px;
+          overflow-y: auto;
+          background: var(--clr-surface-1, var(--clr-surface));
+          border: 1px solid var(--clr-border);
+          border-radius: 12px;
+          box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(16px);
+          padding: 6px;
+          display: none;
+          flex-direction: column;
+          gap: 2px;
+          animation: st-dropdown-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .st-dropdown-menu::-webkit-scrollbar {
+          width: 5px;
+        }
+        .st-dropdown-menu::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.15);
+          border-radius: 4px;
+        }
+        @keyframes st-dropdown-fade {
+          from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .st-dropdown-wrap.open .st-dropdown-menu {
+          display: flex;
+        }
+        .st-dropdown-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 7px 10px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--clr-text);
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: background 0.12s ease, color 0.12s ease;
+          width: 100%;
+          text-align: left;
+        }
+        .st-dropdown-item:hover {
+          background: var(--clr-surface-2);
+          color: var(--clr-primary);
+        }
+        .st-dropdown-item.selected {
+          background: var(--clr-primary-glow);
+          color: var(--clr-primary);
+          font-weight: 700;
+        }
+        .st-dropdown-item-content {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+          flex: 1;
+        }
+        .st-dropdown-item-check {
+          display: flex;
+          align-items: center;
+          color: var(--clr-primary);
+          flex-shrink: 0;
         }
         .st-search-wrap {
           position: relative;
@@ -525,18 +652,22 @@ export function renderSettingsScreen(
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 16px;
+          padding: 12px 16px 12px 19px;
           border-radius: 12px;
           background: var(--clr-surface-2);
           border: 1px solid var(--clr-border);
+          border-left: 3px solid var(--clr-border);
           transition: all 0.2s ease;
         }
+        .st-container-item--water { border-left-color: var(--clr-primary); }
+        .st-container-item--flat  { border-left-color: var(--clr-deliver); }
         .st-container-item:hover {
           background: var(--clr-surface);
-          border-color: var(--clr-primary);
-          box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.08);
           transform: translateY(-1px);
         }
+        .st-container-item--water:hover { border-color: rgba(13,148,136,0.35); border-left-color: var(--clr-primary); }
+        .st-container-item--flat:hover  { border-color: rgba(217,119,6,0.35); border-left-color: var(--clr-deliver); }
         .st-container-icon-box {
           width: 38px;
           height: 38px;
@@ -556,28 +687,36 @@ export function renderSettingsScreen(
         }
         .st-add-box {
           background: var(--clr-surface-2);
-          border: 1px dashed var(--clr-border-light);
+          border: 1.5px dashed color-mix(in srgb, var(--clr-primary) 35%, transparent);
           border-radius: 14px;
-          padding: 18px;
+          padding: 16px 18px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          margin-top: 14px;
+          gap: 11px;
+          margin-top: 10px;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .st-add-box:focus-within {
+          border-color: var(--clr-primary);
+          box-shadow: 0 0 0 3px var(--clr-primary-glow);
         }
         .st-water-card {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 16px;
+          padding: 12px 16px 12px 19px;
           border-radius: 12px;
           background: var(--clr-surface-2);
           border: 1px solid var(--clr-border);
+          border-left: 3px solid var(--clr-primary);
           transition: all 0.2s ease;
         }
+        .st-water-card--alkaline { border-left-color: #9333ea; }
+        .st-water-card--purified { border-left-color: #0284c7; }
+        .st-water-card--mineral  { border-left-color: #059669; }
         .st-water-card:hover {
           background: var(--clr-surface);
-          border-color: var(--clr-primary);
-          box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.08);
           transform: translateY(-1px);
         }
         .st-quick-adjust-bar {
@@ -591,8 +730,8 @@ export function renderSettingsScreen(
           border-bottom: 1px solid var(--clr-border);
         }
         .st-quick-btn {
-          padding: 4px 10px;
-          border-radius: 6px;
+          padding: 4px 12px;
+          border-radius: 20px;
           font-size: 11px;
           font-weight: 700;
           border: 1px solid var(--clr-border);
@@ -608,7 +747,8 @@ export function renderSettingsScreen(
           background: var(--clr-primary);
           color: #ffffff;
           border-color: var(--clr-primary);
-          box-shadow: 0 2px 6px var(--clr-primary-glow);
+          box-shadow: 0 2px 8px var(--clr-primary-glow);
+          transform: scale(1.04);
         }
         .st-preset-chip, .st-preset-chip-wt {
           padding: 3px 9px;
@@ -843,7 +983,10 @@ export function renderSettingsScreen(
 
       case 'pricing': {
         // Compute metrics
-        const distinctContainers = [...new Set(cfg.priceTable.map(p => p.container))]
+        const distinctContainers = Array.from(
+          new Set([...cfg.containerTypes.map(c => c.name), ...cfg.priceTable.map(p => p.container)])
+        ).filter(Boolean)
+
         const gallonRows = cfg.priceTable.filter(p => {
           const ct = cfg.containerTypes.find(c => c.name === p.container)
           return ct ? ct.requiresWaterType : Boolean(p.water)
@@ -888,97 +1031,177 @@ export function renderSettingsScreen(
         return `
           <div style="display:flex;flex-direction:column;gap:18px;">
 
-            <!-- Metric Overview & Sync Banner -->
-            <div class="st-hero-bar">
-              <div class="st-stat-badges">
-                <div class="st-sync-pill">Database Live Synced</div>
-                <div class="st-stat-badge">
-                  <span>Price Combinations:</span>
-                  <strong>${cfg.priceTable.length}</strong>
-                </div>
-                <div class="st-stat-badge">
-                  <span>Containers:</span>
-                  <strong>${distinctContainers.length}</strong>
-                </div>
-                <div class="st-stat-badge">
-                  <span>Water Types:</span>
-                  <strong>${cfg.waterTypes.length}</strong>
-                </div>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:10px;">
-                <button type="button" class="btn btn-secondary btn-sm btn-sync-db" style="display:flex;align-items:center;gap:6px;">
-                  ${Icons.refreshCw} Sync to DB
-                </button>
-                <button type="button" id="btn-save-prices" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;${hasUnsavedPrices ? 'box-shadow:0 0 0 3px var(--clr-primary-glow),0 2px 10px var(--clr-primary-glow);animation:st-pulse-btn 1.5s infinite;' : 'box-shadow:0 2px 10px var(--clr-primary-glow);'}">
-                  ${hasUnsavedPrices ? `${Icons.alertTriangle} Unsaved Changes` : `${Icons.check} Save Prices`}
-                  <kbd style="font-size:10px;padding:2px 5px;background:rgba(255,255,255,0.2);border-radius:4px;margin-left:4px;font-family:monospace;">Ctrl+S</kbd>
-                </button>
-              </div>
-            </div>
-
             <!-- Price Matrix Card -->
             <div class="st-card">
-              <!-- Toolbar & Filtering -->
-              <div class="st-pricing-toolbar">
-                <div class="st-filter-pills">
-                  <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'all' ? 'active' : ''}" data-cat="all">
-                    All Items <span style="font-size:11px;opacity:0.8;">(${cfg.priceTable.length})</span>
-                  </button>
-                  <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'gallon' ? 'active' : ''}" data-cat="gallon">
-                    💧 Gallon Refills <span style="font-size:11px;opacity:0.8;">(${gallonRows.length})</span>
-                  </button>
-                  <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'bottle' ? 'active' : ''}" data-cat="bottle">
-                    📦 Bottles / Flat <span style="font-size:11px;opacity:0.8;">(${bottleRows.length})</span>
-                  </button>
+              <!-- Card Header with actions -->
+              <div class="st-card-header">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                  <h3>${Icons.tag} Price Matrix</h3>
+                  <span style="font-size:11px;font-weight:700;background:var(--clr-surface-2);border:1px solid var(--clr-border);padding:3px 10px;border-radius:20px;color:var(--clr-text-muted);">${cfg.priceTable.length} combinations</span>
+                  ${hasUnsavedPrices ? `<span style="font-size:11px;font-weight:700;color:#d97706;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#d97706;display:inline-block;"></span> Unsaved</span>` : ''}
                 </div>
-
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <!-- Container filter select -->
-                  <select id="st-price-container-filter"
-                    style="padding:6px 10px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:12px;font-weight:600;cursor:pointer;">
-                    <option value="ALL" ${priceContainerFilter === 'ALL' ? 'selected' : ''}>All Containers</option>
-                    ${distinctContainers.map(ct => `<option value="${ct}" ${priceContainerFilter === ct ? 'selected' : ''}>${ct}</option>`).join('')}
-                  </select>
-
-                  <!-- Water filter select -->
-                  <select id="st-price-water-filter"
-                    style="padding:6px 10px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:12px;font-weight:600;cursor:pointer;">
-                    <option value="ALL" ${priceWaterFilter === 'ALL' ? 'selected' : ''}>All Water Types</option>
-                    ${cfg.waterTypes.map(wt => `<option value="${wt}" ${priceWaterFilter === wt ? 'selected' : ''}>${wt}</option>`).join('')}
-                    <option value="NONE" ${priceWaterFilter === 'NONE' ? 'selected' : ''}>No Water (Bottles / Flat)</option>
-                  </select>
-
-                  <!-- Search bar with clear button -->
-                  <div class="st-search-wrap">
-                    <span class="st-search-icon">${Icons.search}</span>
-                    <input type="text" id="st-price-search" class="st-search-input" placeholder="Search price matrix…" value="${priceSearchFilter}" />
-                    ${priceSearchFilter ? `<button type="button" id="btn-clear-price-search" class="st-search-clear" title="Clear filter">${Icons.x}</button>` : ''}
-                  </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <button type="button" class="btn btn-ghost btn-sm btn-sync-db" style="display:flex;align-items:center;gap:6px;">
+                    ${Icons.refreshCw} Sync DB
+                  </button>
+                  <button type="button" id="btn-save-prices" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;${hasUnsavedPrices ? 'box-shadow:0 0 0 3px var(--clr-primary-glow),0 2px 10px var(--clr-primary-glow);animation:st-pulse-btn 1.5s infinite;' : ''}">
+                    ${hasUnsavedPrices ? `${Icons.alertTriangle} Save Changes` : `${Icons.check} Save Prices`}
+                    <kbd style="font-size:10px;padding:2px 5px;background:rgba(255,255,255,0.2);border-radius:4px;margin-left:2px;font-family:monospace;">Ctrl+S</kbd>
+                  </button>
                 </div>
               </div>
 
-              <!-- Quick Adjust Bar (visible when rows are shown) -->
+              <!-- Compact Filter Row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface);">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <div class="st-filter-pills">
+                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'all' ? 'active' : ''}" data-cat="all">
+                      All <span style="font-size:11px;opacity:0.8;">(${cfg.priceTable.length})</span>
+                    </button>
+                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'gallon' ? 'active' : ''}" data-cat="gallon">
+                      💧 Gallon <span style="font-size:11px;opacity:0.8;">(${gallonRows.length})</span>
+                    </button>
+                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'bottle' ? 'active' : ''}" data-cat="bottle">
+                      📦 Bottle <span style="font-size:11px;opacity:0.8;">(${bottleRows.length})</span>
+                    </button>
+                  </div>
+
+                  <!-- Custom Dropdown Filters (Side-by-Side) -->
+                  <div style="display:inline-flex;align-items:center;gap:6px;">
+                    <!-- Container Custom Dropdown -->
+                    <div class="st-dropdown-wrap" id="wrap-ct-filter">
+                      <button type="button" class="st-dropdown-trigger ${priceContainerFilter !== 'ALL' ? 'active' : ''}" id="btn-ct-filter-trigger" title="Filter by Container Type">
+                        <span style="display:flex;align-items:center;gap:5px;">
+                          <span>📦</span>
+                          <span style="max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${priceContainerFilter === 'ALL' ? 'Containers' : priceContainerFilter}</span>
+                        </span>
+                        <span class="st-chevron" style="width:13px;height:13px;display:flex;align-items:center;">${Icons.chevronDown}</span>
+                      </button>
+
+                      <div class="st-dropdown-menu" id="menu-ct-filter">
+                        <div style="padding:4px 8px 6px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-dim);border-bottom:1px solid var(--clr-border);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+                          <span>Filter by Container</span>
+                          <span>${distinctContainers.length} types</span>
+                        </div>
+                        <button type="button" class="st-dropdown-item ${priceContainerFilter === 'ALL' ? 'selected' : ''}" data-ct="ALL">
+                          <div class="st-dropdown-item-content">
+                            <span style="font-size:13px;">📦</span>
+                            <span>All Containers</span>
+                          </div>
+                          ${priceContainerFilter === 'ALL' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                        <div style="height:1px;background:var(--clr-border);margin:3px 0;"></div>
+                        ${distinctContainers.map(ct => {
+                          const ctObj = cfg.containerTypes.find(c => c.name === ct)
+                          const isWater = ctObj ? ctObj.requiresWaterType : false
+                          const isSelected = priceContainerFilter === ct
+                          return `
+                            <button type="button" class="st-dropdown-item ${isSelected ? 'selected' : ''}" data-ct="${ct}">
+                              <div class="st-dropdown-item-content">
+                                <span style="font-size:12px;">${isWater ? '💧' : '📦'}</span>
+                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ct}</span>
+                                <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:${isWater ? 'rgba(13,148,136,0.15)' : 'rgba(217,119,6,0.15)'};color:${isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'};">
+                                  ${isWater ? 'Water' : 'Flat'}
+                                </span>
+                              </div>
+                              ${isSelected ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                            </button>
+                          `
+                        }).join('')}
+                      </div>
+                    </div>
+
+                    <!-- Water Custom Dropdown -->
+                    <div class="st-dropdown-wrap" id="wrap-water-filter">
+                      <button type="button" class="st-dropdown-trigger ${priceWaterFilter !== 'ALL' ? 'active' : ''}" id="btn-water-filter-trigger" title="Filter by Water Type">
+                        <span style="display:flex;align-items:center;gap:5px;">
+                          <span>💧</span>
+                          <span style="max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${priceWaterFilter === 'ALL' ? 'Water' : priceWaterFilter === 'NONE' ? 'Flat' : priceWaterFilter}</span>
+                        </span>
+                        <span class="st-chevron" style="width:13px;height:13px;display:flex;align-items:center;">${Icons.chevronDown}</span>
+                      </button>
+
+                      <div class="st-dropdown-menu" id="menu-water-filter">
+                        <div style="padding:4px 8px 6px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-dim);border-bottom:1px solid var(--clr-border);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+                          <span>Filter by Water Type</span>
+                          <span>${cfg.waterTypes.length} variants</span>
+                        </div>
+                        <button type="button" class="st-dropdown-item ${priceWaterFilter === 'ALL' ? 'selected' : ''}" data-water="ALL">
+                          <div class="st-dropdown-item-content">
+                            <span style="font-size:13px;">💧</span>
+                            <span>All Water Types</span>
+                          </div>
+                          ${priceWaterFilter === 'ALL' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                        <div style="height:1px;background:var(--clr-border);margin:3px 0;"></div>
+                        ${cfg.waterTypes.map(wt => {
+                          const wUpper = wt.toUpperCase()
+                          let dotColor = 'var(--clr-primary)'
+                          if (wUpper === 'ALKALINE') dotColor = '#9333ea'
+                          else if (wUpper === 'PURIFIED') dotColor = '#0284c7'
+                          else if (wUpper === 'MINERAL') dotColor = '#059669'
+                          const isSelected = priceWaterFilter === wt
+                          return `
+                            <button type="button" class="st-dropdown-item ${isSelected ? 'selected' : ''}" data-water="${wt}">
+                              <div class="st-dropdown-item-content">
+                                <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block;flex-shrink:0;"></span>
+                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${wt}</span>
+                              </div>
+                              ${isSelected ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                            </button>
+                          `
+                        }).join('')}
+                        <div style="height:1px;background:var(--clr-border);margin:3px 0;"></div>
+                        <button type="button" class="st-dropdown-item ${priceWaterFilter === 'NONE' ? 'selected' : ''}" data-water="NONE">
+                          <div class="st-dropdown-item-content">
+                            <span style="font-size:12px;">📦</span>
+                            <span>No Water (Flat Bottles)</span>
+                          </div>
+                          ${priceWaterFilter === 'NONE' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                      </div>
+                    </div>
+
+                    ${(priceContainerFilter !== 'ALL' || priceWaterFilter !== 'ALL') ? `
+                      <button type="button" id="btn-clear-ct-price-filter" class="st-filter-btn" style="font-size:11px;padding:4px 9px;color:var(--clr-primary);border-color:rgba(13,148,136,0.4);background:var(--clr-primary-glow);border-radius:20px;display:inline-flex;align-items:center;gap:4px;font-weight:700;" title="Reset container and water filters">
+                        Clear ${Icons.x}
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+
+                <div class="st-search-wrap">
+                  <span class="st-search-icon">${Icons.search}</span>
+                  <input type="text" id="st-price-search" class="st-search-input" placeholder="Search prices…" value="${priceSearchFilter}" style="width:125px;" />
+                  ${priceSearchFilter ? `<button type="button" id="btn-clear-price-search" class="st-search-clear" title="Clear">${Icons.x}</button>` : ''}
+                </div>
+              </div>
+
+              <!-- Quick Price Adjust Strip (Fixed Peso Amounts) -->
               ${filteredPrices.length > 0 ? `
-              <div class="st-quick-adjust-bar">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <span style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:.04em;">Quick Adjust ${isFiltered ? `(${filteredPrices.length} visible rows)` : `(all ${filteredPrices.length} rows)`}:</span>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="-10" data-adjust-field="both" title="Lower all visible pickup & delivery prices by 10%">−10%</button>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="-5"  data-adjust-field="both" title="Lower all visible prices by 5%">−5%</button>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="5"   data-adjust-field="both" title="Raise all visible prices by 5%">+5%</button>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="10"  data-adjust-field="both" title="Raise all visible prices by 10%">+10%</button>
-                  <span style="width:1px;height:16px;background:var(--clr-border);margin:0 2px;"></span>
-                  <span style="font-size:11px;color:var(--clr-text-dim);">Pickup only:</span>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="5"   data-adjust-field="pickup"  title="Raise pickup only by 5%">+5%</button>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="10"  data-adjust-field="pickup"  title="Raise pickup only by 10%">+10%</button>
-                  <span style="font-size:11px;color:var(--clr-text-dim);">Delivery:</span>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="5"   data-adjust-field="deliver" title="Raise delivery only by 5%">+5%</button>
-                  <button type="button" class="st-quick-btn" data-adjust-pct="10"  data-adjust-field="deliver" title="Raise delivery only by 10%">+10%</button>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 20px;background:rgba(14,165,233,0.03);border-bottom:1px solid var(--clr-border);">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;display:flex;align-items:center;gap:5px;">
+                    ${Icons.dollar} Add / Deduct Price:
+                  </span>
+                  <div style="display:inline-flex;align-items:center;gap:4px;">
+                    <button type="button" class="st-quick-btn" data-adjust-amount="-10" title="Deduct ₱10 from all visible rows">−₱10</button>
+                    <button type="button" class="st-quick-btn" data-adjust-amount="-5" title="Deduct ₱5 from all visible rows">−₱5</button>
+                    <button type="button" class="st-quick-btn" data-adjust-amount="-1" title="Deduct ₱1 from all visible rows">−₱1</button>
+                    <button type="button" class="st-quick-btn" data-adjust-amount="1" title="Add ₱1 to all visible rows">+₱1</button>
+                    <button type="button" class="st-quick-btn" data-adjust-amount="5" style="border-color:var(--clr-primary);color:var(--clr-primary);font-weight:800;background:var(--clr-primary-glow);" title="Add ₱5 to all visible rows">+₱5</button>
+                    <button type="button" class="st-quick-btn" data-adjust-amount="10" title="Add ₱10 to all visible rows">+₱10</button>
+                  </div>
+                  <div style="display:inline-flex;align-items:center;gap:4px;margin-left:4px;">
+                    <span style="font-size:11px;color:var(--clr-text-dim);font-weight:700;">₱</span>
+                    <input type="number" id="inp-custom-adjust-amount" placeholder="Custom" step="1"
+                      style="width:68px;padding:3px 8px;border-radius:6px;border:1px solid var(--clr-border);background:var(--clr-surface);color:var(--clr-text);font-size:11px;font-weight:700;outline:none;" />
+                    <button type="button" id="btn-apply-custom-adjust" class="st-quick-btn" style="padding:3px 8px;font-size:11px;" title="Apply custom amount">
+                      Apply
+                    </button>
+                  </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:6px;">
-                  ${isFiltered ? `<span style="font-size:11px;color:var(--clr-text-muted);">Showing <strong style="color:var(--clr-primary);">${filteredPrices.length}</strong> of ${cfg.priceTable.length} rows</span>` : ''}
-                  ${hasUnsavedPrices ? `<span style="font-size:11px;font-weight:700;color:#d97706;display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#d97706;display:inline-block;"></span> Unsaved</span>` : `<span style="font-size:11px;color:var(--clr-success);display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--clr-success);display:inline-block;"></span> Saved</span>`}
-                </div>
+                ${isFiltered ? `<button type="button" id="btn-reset-price-filter" class="st-filter-btn" style="font-size:11px;padding:4px 10px;">✕ Clear filter</button>` : ''}
               </div>
               ` : ''}
 
@@ -1078,10 +1301,8 @@ export function renderSettingsScreen(
       }
 
       case 'containers': {
-        // Apply container type filter
+        // Apply container search filter only (type filter always shows all)
         let filteredContainers = cfg.containerTypes
-        if (containerTypeFilter === 'water') filteredContainers = filteredContainers.filter(ct => ct.requiresWaterType)
-        else if (containerTypeFilter === 'flat') filteredContainers = filteredContainers.filter(ct => !ct.requiresWaterType)
         if (containerSearchFilter) {
           filteredContainers = filteredContainers.filter(ct => ct.name.toLowerCase().includes(containerSearchFilter.toLowerCase()))
         }
@@ -1092,236 +1313,188 @@ export function renderSettingsScreen(
         return `
           <div style="display:flex;flex-direction:column;gap:20px;">
 
-            <!-- Top Database Sync Notice & Actions -->
-            <div class="st-hero-bar">
-              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <div class="st-sync-pill">Database Synchronized</div>
-                <div class="st-stat-badges">
-                  <div class="st-stat-badge">${Icons.package} <strong>${cfg.containerTypes.length}</strong> containers</div>
-                  <div class="st-stat-badge">${Icons.droplets} <strong>${waterCtCount}</strong> water-variant</div>
-                  <div class="st-stat-badge">📦 <strong>${flatCtCount}</strong> flat-rate</div>
-                  <div class="st-stat-badge">${Icons.tag} <strong>${cfg.priceTable.length}</strong> price rules</div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm btn-sync-db" style="display:flex;align-items:center;gap:6px;">
-                ${Icons.refreshCw} Sync to Database Now
-              </button>
-            </div>
-
-            <!-- Main Split Grid -->
-            <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:20px;align-items:start;">
-
-              <!-- Container Types Column -->
-              <div class="st-card">
-                <div class="st-card-header">
-                  <div>
-                    <h3>${Icons.package} Container Types</h3>
-                    <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">
-                      ${cfg.containerTypes.length} configured (${waterCtCount} water variants · ${flatCtCount} flat)
-                    </div>
+            <!-- Container Types (Primary - Full Width) -->
+            <div class="st-card">
+              <div class="st-card-header">
+                <div>
+                  <h3>${Icons.package} Container Types</h3>
+                  <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">
+                    ${cfg.containerTypes.length} total · ${waterCtCount} water · ${flatCtCount} flat
                   </div>
-                  <div style="display:flex;align-items:center;gap:8px;">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div class="st-search-wrap">
+                    <span class="st-search-icon">${Icons.search}</span>
                     <input type="text" id="ct-search-input" placeholder="Search containers…" value="${containerSearchFilter}"
-                      style="padding:6px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface-2);color:var(--clr-text);font-size:12px;width:140px;" />
+                      class="st-search-input" style="width:160px;" />
+                    ${containerSearchFilter ? `<button type="button" id="btn-reset-ct-filter" class="st-search-clear">${Icons.x}</button>` : ''}
                   </div>
-                </div>
-
-                <!-- Container Type Filter Pills -->
-                <div style="padding:10px 18px;border-bottom:1px solid var(--clr-border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--clr-surface);">
-                  <button type="button" class="st-filter-btn st-ct-type-btn ${containerTypeFilter === 'all' ? 'active' : ''}" data-cttype="all">All (${cfg.containerTypes.length})</button>
-                  <button type="button" class="st-filter-btn st-ct-type-btn ${containerTypeFilter === 'water' ? 'active' : ''}" data-cttype="water">💧 Water Variants (${waterCtCount})</button>
-                  <button type="button" class="st-filter-btn st-ct-type-btn ${containerTypeFilter === 'flat' ? 'active' : ''}" data-cttype="flat">📦 Flat Rate (${flatCtCount})</button>
-                  ${(containerSearchFilter || containerTypeFilter !== 'all') ? `<button type="button" id="btn-reset-ct-filter" class="st-filter-btn" style="margin-left:auto;font-size:11px;">✕ Clear Filters</button>` : ''}
-                </div>
-
-                <div class="st-card-body">
-                  <div style="display:flex;flex-direction:column;gap:8px;" id="container-types-list">
-                    ${filteredContainers.length === 0 ? `
-                      <div style="padding:32px 20px;text-align:center;color:var(--clr-text-muted);">
-                        <div style="font-size:28px;margin-bottom:8px;">📦</div>
-                        <div style="font-weight:700;font-size:14px;color:var(--clr-text);margin-bottom:4px;">No containers match</div>
-                        <div style="font-size:12px;">Try clearing the search or filter above.</div>
-                      </div>
-                    ` : filteredContainers.map((ct) => {
-                      const originalIndex = cfg.containerTypes.indexOf(ct)
-                      const priceRowCount = cfg.priceTable.filter(p => p.container === ct.name).length
-                      const zeroPriceCount = cfg.priceTable.filter(p => p.container === ct.name && p.pickup === 0 && p.deliver === 0).length
-                      const coverageOk = priceRowCount > 0 && zeroPriceCount === 0
-                      const coveragePartial = priceRowCount > 0 && zeroPriceCount > 0
-
-                      return `
-                        <div class="st-container-item">
-                          <div style="display:flex;align-items:center;gap:12px;min-width:0;">
-                            <div class="st-container-icon-box ${ct.requiresWaterType ? 'st-container-icon-box--water' : 'st-container-icon-box--flat'}">
-                              ${ct.requiresWaterType ? Icons.droplets : Icons.package}
-                            </div>
-                            <div style="min-width:0;">
-                              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                <span style="font-weight:800;font-size:13px;color:var(--clr-text);letter-spacing:0.02em;">${ct.name}</span>
-                                ${ct.requiresWaterType
-                                  ? `<span class="st-tag-pill" style="background:var(--clr-primary-glow);color:var(--clr-primary);border-color:rgba(13,148,136,0.3);">💧 Water</span>`
-                                  : `<span class="st-tag-pill" style="background:rgba(217,119,6,0.1);color:var(--clr-deliver);border-color:rgba(217,119,6,0.3);">📦 Flat</span>`
-                                }
-                                ${coverageOk
-                                  ? `<span style="font-size:10px;font-weight:700;color:var(--clr-success);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:5px;padding:2px 6px;">✓ ${priceRowCount} prices</span>`
-                                  : coveragePartial
-                                    ? `<span style="font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:5px;padding:2px 6px;">⚠ ${zeroPriceCount} zero price${zeroPriceCount !== 1 ? 's' : ''}</span>`
-                                    : `<span style="font-size:10px;font-weight:700;color:var(--clr-danger);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:5px;padding:2px 6px;">✗ No prices</span>`
-                                }
-                              </div>
-                              <div style="font-size:11px;color:var(--clr-text-muted);margin-top:3px;">
-                                ${ct.requiresWaterType
-                                  ? `Multi-variant (${cfg.waterTypes.join(' / ')}) · ${priceRowCount} price rules`
-                                  : `Single flat item / bottle price · ${priceRowCount} price rule`
-                                }
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                            <label class="toggle" title="Toggle Water Type Requirement (Multi-variant vs Flat)" style="margin-right:4px;">
-                              <input type="checkbox" class="ct-requires-water" data-index="${originalIndex}" ${ct.requiresWaterType ? 'checked' : ''} />
-                              <span class="slider"></span>
-                            </label>
-                            <button class="btn btn-ghost btn-sm" data-tab="pricing" data-ct-filter="${ct.name}" title="Go to prices for ${ct.name}" style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--clr-primary);">
-                              ${Icons.tag} Prices
-                            </button>
-                            <button class="btn btn-ghost btn-icon btn-del-ct" data-index="${originalIndex}" title="Delete Container Type" style="color:var(--clr-error);">
-                              ${Icons.trash}
-                            </button>
-                          </div>
-                        </div>
-                      `
-                    }).join('')}
-                  </div>
-
-                  <!-- Add Container Box -->
-                  <div class="st-add-box">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <span style="color:var(--clr-primary);">${Icons.plus}</span>
-                      <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--clr-text);">Register New Container Type</span>
-                    </div>
-
-                    <div style="display:flex;gap:10px;">
-                      <input type="text" id="new-ct-name" placeholder="e.g. 5 GAL SLIM, 20L DISPENSER"
-                        style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:13px;text-transform:uppercase;font-weight:700;"
-                        autocomplete="off" />
-                      <button id="btn-add-ct" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;padding:9px 16px;">
-                        ${Icons.plus} Add Container
-                      </button>
-                    </div>
-
-                    <!-- Toggle Bar for Water Type Requirement -->
-                    <div id="new-ct-toggle-card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:10px;background:var(--clr-surface);border:1px solid var(--clr-border);cursor:pointer;transition:border-color 0.2s, background 0.2s;">
-                      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
-                        <div id="new-ct-mode-icon" style="width:34px;height:34px;border-radius:9px;background:rgba(13,148,136,0.12);color:var(--clr-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;">
-                          ${Icons.droplets}
-                        </div>
-                        <div style="min-width:0;">
-                          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <strong style="font-size:12px;color:var(--clr-text);">Requires Water Type Selection</strong>
-                            <span id="new-ct-mode-badge" class="st-tag-pill" style="background:var(--clr-primary-glow);color:var(--clr-primary);border-color:rgba(13,148,136,0.3);font-size:11px;">
-                              💧 Multi-variant
-                            </span>
-                          </div>
-                          <div id="new-ct-mode-hint" style="font-size:11px;color:var(--clr-text-muted);margin-top:3px;">
-                            Generates separate price rows for each water variant (Alkaline, Purified, Mineral)
-                          </div>
-                        </div>
-                      </div>
-                      <label class="toggle" title="Toggle Water Type Requirement (Multi-variant vs Flat)" style="flex-shrink:0;margin:0;cursor:pointer;">
-                        <input type="checkbox" id="new-ct-req" checked />
-                        <span class="slider"></span>
-                      </label>
-                    </div>
-
-                    <div style="font-size:11px;color:var(--clr-text-dim);display:flex;align-items:center;gap:6px;border-top:1px solid var(--clr-border);padding-top:8px;margin-top:2px;">
-                      <span style="color:var(--clr-success);">✓</span> Automatically persists to local SQLite database and uploads to Supabase cloud.
-                      <span style="margin-left:auto;color:var(--clr-text-dim);font-style:italic;">Press Enter ↵ to add</span>
-                    </div>
-                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm btn-sync-db" style="display:flex;align-items:center;gap:6px;">
+                    ${Icons.refreshCw} Sync DB
+                  </button>
                 </div>
               </div>
 
-              <!-- Water Types Column -->
-              <div class="st-card">
-                <div class="st-card-header">
-                  <div>
-                    <h3>${Icons.droplets} Water Types</h3>
-                    <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">
-                      ${cfg.waterTypes.length} configured refill variants
+              <div class="st-card-body">
+                <div style="display:flex;flex-direction:column;gap:8px;" id="container-types-list">
+                  ${filteredContainers.length === 0 ? `
+                    <div style="padding:32px 20px;text-align:center;color:var(--clr-text-muted);">
+                      <div style="font-size:28px;margin-bottom:8px;">📦</div>
+                      <div style="font-weight:700;font-size:14px;color:var(--clr-text);margin-bottom:4px;">No containers match</div>
+                      <div style="font-size:12px;">Try clearing the search above.</div>
                     </div>
-                  </div>
-                </div>
+                  ` : filteredContainers.map((ct) => {
+                    const originalIndex = cfg.containerTypes.indexOf(ct)
+                    const priceRowCount = cfg.priceTable.filter(p => p.container === ct.name).length
+                    const zeroPriceCount = cfg.priceTable.filter(p => p.container === ct.name && p.pickup === 0 && p.deliver === 0).length
+                    const coverageOk = priceRowCount > 0 && zeroPriceCount === 0
+                    const coveragePartial = priceRowCount > 0 && zeroPriceCount > 0
 
-                <div class="st-card-body">
-                  <div style="display:flex;flex-direction:column;gap:8px;" id="water-types-list">
-                    ${cfg.waterTypes.map((wt, i) => {
-                      const wUpper = wt.toUpperCase()
-                      let badgeClass = 'st-water-card'
-                      let iconColor = 'var(--clr-primary)'
-                      let desc = 'Custom refill drinking water variant'
-
-                      if (wUpper === 'ALKALINE') {
-                        iconColor = '#9333ea'
-                        desc = 'High-pH ionized drinking water variant'
-                      } else if (wUpper === 'PURIFIED') {
-                        iconColor = '#0284c7'
-                        desc = 'Reverse osmosis purified water variant'
-                      } else if (wUpper === 'MINERAL') {
-                        iconColor = '#059669'
-                        desc = 'Mineral-enriched clean drinking water variant'
-                      }
-
-                      const containerCount = cfg.containerTypes.filter(ct => ct.requiresWaterType).length
-
-                      return `
-                        <div class="${badgeClass}">
-                          <div style="display:flex;align-items:center;gap:12px;">
-                            <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:${iconColor};flex-shrink:0;">
-                              ${Icons.droplets}
+                    return `
+                      <div class="st-container-item ${ct.requiresWaterType ? 'st-container-item--water' : 'st-container-item--flat'}">
+                        <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                          <div class="st-container-icon-box ${ct.requiresWaterType ? 'st-container-icon-box--water' : 'st-container-icon-box--flat'}">
+                            ${ct.requiresWaterType ? Icons.droplets : Icons.package}
+                          </div>
+                          <div style="min-width:0;">
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                              <span style="font-weight:800;font-size:13px;color:var(--clr-text);letter-spacing:0.02em;">${ct.name}</span>
+                              ${ct.requiresWaterType
+                                ? `<span class="st-tag-pill" style="background:var(--clr-primary-glow);color:var(--clr-primary);border-color:rgba(13,148,136,0.3);border-radius:20px;">💧 Water</span>`
+                                : `<span class="st-tag-pill" style="background:rgba(217,119,6,0.1);color:var(--clr-deliver);border-color:rgba(217,119,6,0.3);border-radius:20px;">📦 Flat</span>`
+                              }
+                              ${coverageOk
+                                ? `<span style="font-size:10px;font-weight:700;color:var(--clr-success);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:5px;padding:2px 6px;">✓ ${priceRowCount} prices</span>`
+                                : coveragePartial
+                                  ? `<span style="font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:5px;padding:2px 6px;">⚠ ${zeroPriceCount} zero price${zeroPriceCount !== 1 ? 's' : ''}</span>`
+                                  : `<span style="font-size:10px;font-weight:700;color:var(--clr-danger);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:5px;padding:2px 6px;">✗ No prices</span>`
+                              }
                             </div>
-                            <div>
-                              <div style="font-weight:800;font-size:13px;color:var(--clr-text);letter-spacing:0.02em;">${wt}</div>
-                              <div style="font-size:11px;color:var(--clr-text-muted);margin-top:2px;">${desc}</div>
-                              <div style="font-size:10px;color:var(--clr-text-dim);margin-top:2px;font-weight:600;">
-                                Linked to ${containerCount} container type${containerCount !== 1 ? 's' : ''}
-                              </div>
+                            <div style="font-size:11px;color:var(--clr-text-muted);margin-top:3px;">
+                              ${ct.requiresWaterType
+                                ? `Multi-variant (${cfg.waterTypes.join(' / ')}) · ${priceRowCount} price rules`
+                                : `Single flat item / bottle price · ${priceRowCount} price rule`
+                              }
                             </div>
                           </div>
+                        </div>
 
-                          <button class="btn btn-ghost btn-icon btn-del-wt" data-index="${i}" title="Delete Water Type" style="color:var(--clr-error);">
+                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                          <label class="toggle" title="Toggle Water Type Requirement (Multi-variant vs Flat)" style="margin-right:4px;">
+                            <input type="checkbox" class="ct-requires-water" data-index="${originalIndex}" ${ct.requiresWaterType ? 'checked' : ''} />
+                            <span class="slider"></span>
+                          </label>
+                          <button class="btn btn-ghost btn-sm" data-tab="pricing" data-ct-filter="${ct.name}" title="Go to prices for ${ct.name}" style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--clr-primary);">
+                            ${Icons.tag} Prices
+                          </button>
+                          <button class="btn btn-ghost btn-icon btn-del-ct" data-index="${originalIndex}" title="Delete Container Type" style="color:var(--clr-error);">
                             ${Icons.trash}
                           </button>
                         </div>
-                      `
-                    }).join('')}
+                      </div>
+                    `
+                  }).join('')}
+                </div>
+
+                <!-- Compact Add Container Form -->
+                <div class="st-add-box">
+                  <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text);">
+                    ${Icons.plus} New Container Type
                   </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" id="new-ct-name" placeholder="e.g. 5 GAL SLIM"
+                      style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:13px;text-transform:uppercase;font-weight:700;"
+                      autocomplete="off" />
+                    <button type="button" id="new-ct-toggle-btn"
+                      style="padding:8px 14px;border-radius:8px;border:1px solid rgba(13,148,136,0.4);background:rgba(13,148,136,0.12);color:var(--clr-primary);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0;"
+                      title="Click to toggle: Water (generates price per water variant) or Flat (single price)">
+                      💧 Water
+                    </button>
+                    <input type="checkbox" id="new-ct-req" checked style="display:none;" />
+                    <button id="btn-add-ct" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;padding:8px 16px;flex-shrink:0;">
+                      ${Icons.plus} Add
+                    </button>
+                  </div>
+                  <div style="font-size:11px;color:var(--clr-text-dim);">Press Enter ↵ · 💧 Water = separate price per variant · 📦 Flat = single price</div>
+                </div>
+              </div>
+            </div>
 
-                  <!-- Add Water Box -->
-                  <div class="st-add-box">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <span style="color:var(--clr-primary);">${Icons.plus}</span>
-                      <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--clr-text);">Register New Water Type</span>
-                    </div>
+            <!-- Water Types (Secondary / Rarely Configured - Full Width at Bottom) -->
+            <div class="st-card">
+              <div class="st-card-header">
+                <div>
+                  <h3>${Icons.droplets} Water Types</h3>
+                  <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">
+                    ${cfg.waterTypes.length} configured refill variants · rarely modified
+                  </div>
+                </div>
+                <span style="font-size:11px;font-weight:600;color:var(--clr-text-dim);background:rgba(255,255,255,0.04);border:1px solid var(--clr-border);border-radius:20px;padding:3px 10px;">
+                  Rarely Modified
+                </span>
+              </div>
 
-                    <div style="display:flex;gap:10px;">
-                      <input type="text" id="new-water-name" placeholder="e.g. DISTILLED, OXYGENATED"
-                        style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:13px;text-transform:uppercase;font-weight:700;"
-                        autocomplete="off" />
-                      <button id="btn-add-water" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;padding:9px 16px;">
-                        ${Icons.plus} Add Water
-                      </button>
-                    </div>
+              <div class="st-card-body">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:10px;" id="water-types-list">
+                  ${cfg.waterTypes.map((wt, i) => {
+                    const wUpper = wt.toUpperCase()
+                    let iconColor = 'var(--clr-primary)'
+                    let desc = 'Custom refill drinking water variant'
 
-                    <div style="font-size:11px;color:var(--clr-text-muted);display:flex;align-items:center;justify-content:space-between;">
-                      <span>Adds price rows for all ${waterCtCount} water-variant container${waterCtCount !== 1 ? 's' : ''} automatically.</span>
-                      <span style="color:var(--clr-text-dim);font-style:italic;">Press Enter ↵ to add</span>
-                    </div>
+                    if (wUpper === 'ALKALINE') {
+                      iconColor = '#9333ea'
+                      desc = 'High-pH ionized drinking water variant'
+                    } else if (wUpper === 'PURIFIED') {
+                      iconColor = '#0284c7'
+                      desc = 'Reverse osmosis purified water variant'
+                    } else if (wUpper === 'MINERAL') {
+                      iconColor = '#059669'
+                      desc = 'Mineral-enriched clean drinking water variant'
+                    }
+
+                    const containerCount = cfg.containerTypes.filter(ct => ct.requiresWaterType).length
+
+                    return `
+                      <div class="st-water-card ${wUpper === 'ALKALINE' ? 'st-water-card--alkaline' : wUpper === 'PURIFIED' ? 'st-water-card--purified' : wUpper === 'MINERAL' ? 'st-water-card--mineral' : ''}">
+                        <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                          <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:${iconColor};flex-shrink:0;">
+                            ${Icons.droplets}
+                          </div>
+                          <div style="min-width:0;">
+                            <div style="font-weight:800;font-size:13px;color:var(--clr-text);letter-spacing:0.02em;">${wt}</div>
+                            <div style="font-size:11px;color:var(--clr-text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${desc}</div>
+                            <div style="font-size:10px;color:var(--clr-text-dim);margin-top:2px;font-weight:600;">
+                              Linked to ${containerCount} container type${containerCount !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button class="btn btn-ghost btn-icon btn-del-wt" data-index="${i}" title="Delete Water Type" style="color:var(--clr-error);flex-shrink:0;margin-left:8px;">
+                          ${Icons.trash}
+                        </button>
+                      </div>
+                    `
+                  }).join('')}
+                </div>
+
+                <!-- Compact Add Water Form -->
+                <div class="st-add-box" style="margin-top:12px;padding:12px 18px;">
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text);white-space:nowrap;display:flex;align-items:center;gap:6px;">
+                      ${Icons.plus} New Water Type:
+                    </span>
+                    <input type="text" id="new-water-name" placeholder="e.g. DISTILLED, OXYGENATED"
+                      style="flex:1;min-width:200px;max-width:320px;padding:7px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:12px;text-transform:uppercase;font-weight:700;"
+                      autocomplete="off" />
+                    <button id="btn-add-water" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;padding:7px 16px;flex-shrink:0;">
+                      ${Icons.plus} Add
+                    </button>
+                    <span style="font-size:11px;color:var(--clr-text-dim);margin-left:auto;">
+                      Press Enter ↵ · Automatically adds price rows for all ${waterCtCount} water-variant container${waterCtCount !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 </div>
               </div>
-
             </div>
 
           </div>
@@ -1359,9 +1532,18 @@ export function renderSettingsScreen(
                     <div style="font-size:12px;color:var(--clr-text-muted);margin-top:2px;">Runs automatically in background at the specified time</div>
                   </div>
                   <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="time" id="inp-backup-time" value="${cfg.backupTime || '19:00'}"
-                      style="padding:7px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:13px;font-family:monospace;" />
-                    <button id="btn-save-backup-time" class="btn btn-secondary btn-sm">Save Time</button>
+                    <div class="st-time-picker-wrapper" style="position:relative;display:inline-flex;align-items:center;">
+                      <span style="position:absolute;left:10px;display:flex;align-items:center;color:var(--clr-primary);pointer-events:none;z-index:2;">
+                        ${Icons.clock}
+                      </span>
+                      <input type="text" id="inp-backup-time" value="${cfg.backupTime || '19:00'}"
+                        placeholder="Select time"
+                        readonly
+                        class="st-time-input" />
+                    </div>
+                    <button id="btn-save-backup-time" class="btn btn-secondary btn-sm" style="display:flex;align-items:center;gap:6px;">
+                      ${Icons.save} Save Time
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1983,13 +2165,15 @@ export function renderSettingsScreen(
       refreshTabContent()
     })
 
-    q('#btn-reset-price-filter')?.addEventListener('click', () => {
-      syncPricesFromDOM()
-      priceSearchFilter = ''
-      priceCategoryFilter = 'all'
-      priceWaterFilter = 'ALL'
-      priceContainerFilter = 'ALL'
-      refreshTabContent()
+    container.querySelectorAll<HTMLButtonElement>('.btn-reset-price-filter, #btn-reset-price-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        syncPricesFromDOM()
+        priceSearchFilter = ''
+        priceCategoryFilter = 'all'
+        priceWaterFilter = 'ALL'
+        priceContainerFilter = 'ALL'
+        refreshTabContent()
+      })
     })
 
     container.querySelectorAll<HTMLButtonElement>('.st-price-cat-btn').forEach(btn => {
@@ -2000,23 +2184,64 @@ export function renderSettingsScreen(
       })
     })
 
-    const containerFilterSelect = q<HTMLSelectElement>('#st-price-container-filter')
-    if (containerFilterSelect) {
-      containerFilterSelect.addEventListener('change', () => {
-        syncPricesFromDOM()
-        priceContainerFilter = containerFilterSelect.value
-        refreshTabContent()
-      })
+    // Custom Dropdown Toggles for Container and Water filters
+    const ctWrap = q<HTMLElement>('#wrap-ct-filter')
+    const waterWrap = q<HTMLElement>('#wrap-water-filter')
+
+    const closeAllFilterDropdowns = () => {
+      container.querySelectorAll('.st-dropdown-wrap.open').forEach(w => w.classList.remove('open'))
     }
 
-    const waterSelect = q<HTMLSelectElement>('#st-price-water-filter')
-    if (waterSelect) {
-      waterSelect.addEventListener('change', () => {
+    q('#btn-ct-filter-trigger')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const isOpen = ctWrap?.classList.contains('open')
+      closeAllFilterDropdowns()
+      if (!isOpen) ctWrap?.classList.add('open')
+    })
+
+    q('#btn-water-filter-trigger')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const isOpen = waterWrap?.classList.contains('open')
+      closeAllFilterDropdowns()
+      if (!isOpen) waterWrap?.classList.add('open')
+    })
+
+    // Click on container filter item
+    container.querySelectorAll<HTMLButtonElement>('.st-dropdown-item[data-ct]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation()
         syncPricesFromDOM()
-        priceWaterFilter = waterSelect.value
+        priceContainerFilter = item.dataset.ct || 'ALL'
+        closeAllFilterDropdowns()
         refreshTabContent()
       })
+    })
+
+    // Click on water filter item
+    container.querySelectorAll<HTMLButtonElement>('.st-dropdown-item[data-water]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation()
+        syncPricesFromDOM()
+        priceWaterFilter = item.dataset.water || 'ALL'
+        closeAllFilterDropdowns()
+        refreshTabContent()
+      })
+    })
+
+    // Close on click outside
+    const handleDropdownOutsideClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.st-dropdown-wrap')) {
+        closeAllFilterDropdowns()
+      }
     }
+    document.addEventListener('click', handleDropdownOutsideClick)
+
+    q('#btn-clear-ct-price-filter')?.addEventListener('click', () => {
+      syncPricesFromDOM()
+      priceContainerFilter = 'ALL'
+      priceWaterFilter = 'ALL'
+      refreshTabContent()
+    })
 
     q('#btn-save-prices')?.addEventListener('click', async () => {
       syncPricesFromDOM()
@@ -2050,39 +2275,62 @@ export function renderSettingsScreen(
       })
     })
 
-    // Quick-adjust bulk percentage buttons
-    container.querySelectorAll<HTMLButtonElement>('[data-adjust-pct]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        syncPricesFromDOM()
-        const pct = parseFloat(btn.dataset.adjustPct || '0')
-        const field = btn.dataset.adjustField || 'both'
-        const multiplier = 1 + (pct / 100)
+    // Quick-adjust bulk peso amount (e.g. +₱5, -₱5)
+    const applyPriceAdjustment = (amount: number) => {
+      if (isNaN(amount) || amount === 0) return
+      syncPricesFromDOM()
 
-        // Only affect currently-visible (filtered) rows
-        container.querySelectorAll<HTMLTableRowElement>('tr[data-price-index]').forEach(row => {
-          const idx = parseInt(row.dataset.priceIndex!, 10)
-          const pickupInp = row.querySelector<HTMLInputElement>('.price-pickup')
-          const deliverInp = row.querySelector<HTMLInputElement>('.price-deliver')
-          if (field === 'both' || field === 'pickup') {
-            if (pickupInp) {
-              const newVal = Math.round((parseFloat(pickupInp.value) || 0) * multiplier * 100) / 100
-              pickupInp.value = String(newVal)
-              if (cfg.priceTable[idx]) cfg.priceTable[idx].pickup = newVal
-            }
-          }
-          if (field === 'both' || field === 'deliver') {
-            if (deliverInp) {
-              const newVal = Math.round((parseFloat(deliverInp.value) || 0) * multiplier * 100) / 100
-              deliverInp.value = String(newVal)
-              if (cfg.priceTable[idx]) cfg.priceTable[idx].deliver = newVal
-            }
-          }
-        })
+      let affectedCount = 0
+      container.querySelectorAll<HTMLTableRowElement>('tr[data-price-index]').forEach(row => {
+        const idx = parseInt(row.dataset.priceIndex!, 10)
+        const pickupInp = row.querySelector<HTMLInputElement>('.price-pickup')
+        const deliverInp = row.querySelector<HTMLInputElement>('.price-deliver')
 
-        hasUnsavedPrices = true
-        showToast(`Applied ${pct > 0 ? '+' : ''}${pct}% to ${field === 'both' ? 'all prices' : field + ' prices'} on visible rows.`, 'info', 2000)
-        refreshTabContent()
+        if (pickupInp) {
+          const current = parseFloat(pickupInp.value) || 0
+          const newVal = Math.max(0, Math.round((current + amount) * 100) / 100)
+          pickupInp.value = String(newVal)
+          if (cfg.priceTable[idx]) cfg.priceTable[idx].pickup = newVal
+        }
+        if (deliverInp) {
+          const current = parseFloat(deliverInp.value) || 0
+          const newVal = Math.max(0, Math.round((current + amount) * 100) / 100)
+          deliverInp.value = String(newVal)
+          if (cfg.priceTable[idx]) cfg.priceTable[idx].deliver = newVal
+        }
+        affectedCount++
       })
+
+      if (affectedCount > 0) {
+        hasUnsavedPrices = true
+        const sign = amount > 0 ? '+' : ''
+        showToast(`Applied ${sign}₱${amount} to ${affectedCount} price row${affectedCount !== 1 ? 's' : ''}. Remember to Save!`, 'info', 2200)
+        refreshTabContent()
+      }
+    }
+
+    container.querySelectorAll<HTMLButtonElement>('[data-adjust-amount]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const amt = parseFloat(btn.dataset.adjustAmount || '0')
+        applyPriceAdjustment(amt)
+      })
+    })
+
+    q('#btn-apply-custom-adjust')?.addEventListener('click', () => {
+      const inp = q<HTMLInputElement>('#inp-custom-adjust-amount')
+      const amt = parseFloat(inp?.value || '0')
+      if (isNaN(amt) || amt === 0) {
+        showToast('Please enter an amount (e.g. 5 or -5).', 'error')
+        return
+      }
+      applyPriceAdjustment(amt)
+    })
+
+    q<HTMLInputElement>('#inp-custom-adjust-amount')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        q<HTMLButtonElement>('#btn-apply-custom-adjust')?.click()
+      }
     })
 
     // ── Global Sync to Database Button ────────────────────────────────────────
@@ -2149,17 +2397,8 @@ export function renderSettingsScreen(
       })
     }
 
-    // Container type filter pills
-    container.querySelectorAll<HTMLButtonElement>('.st-ct-type-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        containerTypeFilter = (btn.dataset.cttype as any) || 'all'
-        refreshTabContent()
-      })
-    })
-
     q('#btn-reset-ct-filter')?.addEventListener('click', () => {
       containerSearchFilter = ''
-      containerTypeFilter = 'all'
       refreshTabContent()
     })
 
@@ -2191,41 +2430,21 @@ export function renderSettingsScreen(
       }
     })
 
-    // Interactive toggle bar for new container water requirement
-    const ctToggleCard = q<HTMLElement>('#new-ct-toggle-card')
+    // Compact toggle button for new container water requirement
     const ctReqCheckbox = q<HTMLInputElement>('#new-ct-req')
-    const ctModeIcon = q<HTMLElement>('#new-ct-mode-icon')
-    const ctModeBadge = q<HTMLElement>('#new-ct-mode-badge')
-    const ctModeHint = q<HTMLElement>('#new-ct-mode-hint')
+    const ctToggleBtn = q<HTMLButtonElement>('#new-ct-toggle-btn')
 
     const updateCtToggleUI = (isWater: boolean) => {
-      if (ctModeIcon) {
-        ctModeIcon.innerHTML = isWater ? Icons.droplets : Icons.package
-        ctModeIcon.style.background = isWater ? 'rgba(13,148,136,0.12)' : 'rgba(217,119,6,0.12)'
-        ctModeIcon.style.color = isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'
-      }
-      if (ctModeBadge) {
-        ctModeBadge.innerHTML = isWater ? '💧 Multi-variant' : '📦 Flat Rate'
-        ctModeBadge.style.background = isWater ? 'var(--clr-primary-glow)' : 'rgba(217,119,6,0.1)'
-        ctModeBadge.style.color = isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'
-        ctModeBadge.style.borderColor = isWater ? 'rgba(13,148,136,0.3)' : 'rgba(217,119,6,0.3)'
-      }
-      if (ctModeHint) {
-        ctModeHint.textContent = isWater
-          ? 'Generates separate price rows for each water variant (Alkaline, Purified, Mineral)'
-          : 'Single flat price rule without water variants (e.g. 350ml, 500ml bottles)'
-      }
-      if (ctToggleCard) {
-        ctToggleCard.style.borderColor = isWater ? 'rgba(13,148,136,0.4)' : 'rgba(217,119,6,0.4)'
+      if (ctToggleBtn) {
+        ctToggleBtn.innerHTML = isWater ? '💧 Water' : '📦 Flat'
+        ctToggleBtn.style.background = isWater ? 'rgba(13,148,136,0.12)' : 'rgba(217,119,6,0.1)'
+        ctToggleBtn.style.color = isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'
+        ctToggleBtn.style.borderColor = isWater ? 'rgba(13,148,136,0.4)' : 'rgba(217,119,6,0.4)'
       }
     }
 
-    if (ctReqCheckbox) {
-      ctReqCheckbox.addEventListener('change', () => {
-        updateCtToggleUI(ctReqCheckbox.checked)
-      })
-      ctToggleCard?.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).closest('.toggle')) return
+    if (ctToggleBtn && ctReqCheckbox) {
+      ctToggleBtn.addEventListener('click', () => {
         ctReqCheckbox.checked = !ctReqCheckbox.checked
         updateCtToggleUI(ctReqCheckbox.checked)
       })
@@ -2388,12 +2607,34 @@ export function renderSettingsScreen(
       render()
     })
 
+    const timeInp = container.querySelector<HTMLInputElement>('#inp-backup-time')
+    if (timeInp) {
+      flatpickr(timeInp, {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: 'H:i',
+        altInput: true,
+        altFormat: 'h:i K',
+        altInputClass: 'st-time-input',
+        defaultDate: cfg.backupTime || '19:00',
+        disableMobile: true,
+        minuteIncrement: 5,
+        onClose: async (_, timeStr) => {
+          if (timeStr && timeStr !== cfg.backupTime) {
+            cfg.backupTime = timeStr
+            await persistConfig()
+            showToast(`Daily backup scheduled for ${formatTime12(timeStr)}`, 'success')
+          }
+        }
+      })
+    }
+
     q('#btn-save-backup-time')?.addEventListener('click', async () => {
       const inp = q<HTMLInputElement>('#inp-backup-time')
       const time = inp?.value || '19:00'
       cfg.backupTime = time
       await persistConfig()
-      showToast(`Daily backup scheduled for ${time}`, 'success')
+      showToast(`Daily backup scheduled for ${formatTime12(time)}`, 'success')
     })
 
     q('#btn-run-backup-now')?.addEventListener('click', async () => {

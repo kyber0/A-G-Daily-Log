@@ -1,5 +1,8 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 export default defineConfig({
   main: {

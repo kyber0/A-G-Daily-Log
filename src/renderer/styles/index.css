@@ -932,11 +932,134 @@ label {
   border-color: #14b8a6 !important;
   color: #14b8a6 !important;
 }
+.flatpickr-monthSelect-month.flatpickr-disabled,
+.flatpickr-monthSelect-month.flatpickr-disabled:hover {
+  cursor: not-allowed !important;
+  color: var(--clr-text-dim) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 0.3 !important;
+  pointer-events: none !important;
+}
+[data-theme="dark"] .flatpickr-monthSelect-month.flatpickr-disabled,
+[data-theme="dark"] .flatpickr-monthSelect-month.flatpickr-disabled:hover {
+  color: #475569 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 0.3 !important;
+  pointer-events: none !important;
+}
 
 /* Spinner / numInput in dark */
 [data-theme="dark"] .numInputWrapper:hover { background: #2a303d !important; }
 [data-theme="dark"] .numInputWrapper .arrowUp::after  { border-bottom-color: #94a3b8 !important; }
 [data-theme="dark"] .numInputWrapper .arrowDown::after { border-top-color: #94a3b8 !important; }
+
+/* ── Flatpickr Time Picker (Light & Dark) ─────────────────────────────────── */
+.flatpickr-calendar.hasTime.noCalendar {
+  width: auto !important;
+  min-width: 170px !important;
+  padding: 6px 10px !important;
+}
+.flatpickr-time {
+  height: 42px !important;
+  line-height: 42px !important;
+  max-height: 42px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: var(--font) !important;
+}
+.flatpickr-time .numInputWrapper {
+  height: 40px !important;
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.flatpickr-time input.numInput {
+  font-family: var(--font) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--clr-text) !important;
+  border-radius: 6px !important;
+  width: 100% !important;
+}
+.flatpickr-time input.numInput:hover,
+.flatpickr-time input.numInput:focus {
+  background: var(--clr-surface-2) !important;
+}
+.flatpickr-time .flatpickr-time-separator {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--clr-text-muted) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 12px !important;
+}
+.flatpickr-time .flatpickr-am-pm {
+  font-family: var(--font) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--clr-primary) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  width: auto !important;
+  cursor: pointer !important;
+  transition: background var(--transition-fast) !important;
+}
+.flatpickr-time .flatpickr-am-pm:hover,
+.flatpickr-time .flatpickr-am-pm:focus {
+  background: var(--clr-primary-glow) !important;
+}
+
+[data-theme="dark"] .flatpickr-time {
+  background: transparent !important;
+  border: none !important;
+}
+[data-theme="dark"] .flatpickr-time input.numInput {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .flatpickr-time input.numInput:hover,
+[data-theme="dark"] .flatpickr-time input.numInput:focus {
+  background: #2a303d !important;
+}
+[data-theme="dark"] .flatpickr-time .flatpickr-time-separator {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .flatpickr-time .flatpickr-am-pm {
+  color: #14b8a6 !important;
+}
+[data-theme="dark"] .flatpickr-time .flatpickr-am-pm:hover,
+[data-theme="dark"] .flatpickr-time .flatpickr-am-pm:focus {
+  background: rgba(20, 184, 166, 0.15) !important;
+}
+
+/* Settings Time Picker Input */
+.st-time-input {
+  padding: 7px 12px 7px 34px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--clr-border) !important;
+  background: var(--clr-input-bg) !important;
+  color: var(--clr-text) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  width: 125px !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+  transition: all var(--transition-fast) !important;
+  letter-spacing: 0.3px !important;
+  font-family: inherit !important;
+}
+.st-time-input:hover {
+  border-color: var(--clr-primary) !important;
+}
+.st-time-input:focus {
+  border-color: var(--clr-primary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--clr-primary-glow) !important;
+}
 
 .file-indicator {
   display: flex;
