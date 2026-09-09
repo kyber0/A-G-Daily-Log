@@ -35,7 +35,8 @@ export default defineConfig({
       rollupOptions: {
         external: ['electron'],
         input: {
-          index: resolve(__dirname, 'src/preload/index.ts')
+          index:        resolve(__dirname, 'src/preload/index.ts'),
+          confirmClose: resolve(__dirname, 'src/preload/confirmClose.ts')
         }
       }
     }

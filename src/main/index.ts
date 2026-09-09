@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -92,6 +92,56 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+
+  // ── Custom close-confirmation dialog ───────────────────────────────────────
+  let isConfirmedClose = false
+
+  win.on('close', (event) => {
+    if (isConfirmedClose) return // already confirmed, proceed
+
+    event.preventDefault()
+
+    const dialogWin = new BrowserWindow({
+      width: 380,
+      height: 270,
+      parent: win,
+      modal: true,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      alwaysOnTop: true,
+      webPreferences: {
+        preload: path.join(__dirname, '../preload/confirmClose.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    })
+
+    dialogWin.loadFile(path.join(__dirname, '../../resources/confirm-close.html'))
+
+    function cleanup() {
+      ipcMain.removeListener('confirm-close:confirm', onConfirm)
+      ipcMain.removeListener('confirm-close:cancel', onCancel)
+      if (!dialogWin.isDestroyed()) dialogWin.close()
+    }
+
+    function onConfirm() {
+      cleanup()
+      isConfirmedClose = true
+      win.close()
+    }
+
+    function onCancel() {
+      cleanup()
+    }
+
+    ipcMain.once('confirm-close:confirm', onConfirm)
+    ipcMain.once('confirm-close:cancel', onCancel)
+    dialogWin.on('closed', onCancel)
   })
 
   // Route external URLs safely to OS browser

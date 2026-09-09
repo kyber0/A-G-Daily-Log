@@ -116,10 +116,7 @@ export function openDailyExpensesModal(
       <div style="padding: 16px 24px; border-top: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: space-between; background: var(--clr-surface);">
         <span id="modal-exp-item-count" style="font-size: 12px; color: var(--clr-text-muted); font-weight: 600;">0 entries</span>
         <div style="display: flex; gap: 10px;">
-          <button id="btn-cancel-exp-modal" class="btn btn-ghost" style="padding: 8px 16px;">Cancel</button>
-          <button id="btn-save-exp-modal" class="btn btn-primary" style="padding: 8px 20px; display: flex; align-items: center; gap: 6px; font-weight: 700;">
-            ${Icons.check} Save Expenses
-          </button>
+          <button id="btn-cancel-exp-modal" class="btn btn-ghost" style="padding: 8px 16px;">Close</button>
         </div>
       </div>
     </div>
@@ -136,7 +133,6 @@ export function openDailyExpensesModal(
   const btnAdd = modalOverlay.querySelector('#btn-add-exp-row')!
   const btnClose = modalOverlay.querySelector('#btn-close-exp-modal')!
   const btnCancel = modalOverlay.querySelector('#btn-cancel-exp-modal')!
-  const btnSave = modalOverlay.querySelector('#btn-save-exp-modal')!
 
   // Quick category pills
   modalOverlay.querySelectorAll('.btn-quick-cat').forEach(btn => {
@@ -187,7 +183,7 @@ export function openDailyExpensesModal(
           icon: Icons.alertTriangle,
           iconColor: 'danger',
           title: 'Delete Expense?',
-          body: `Are you sure you want to delete <strong>${exp.desc || 'this expense'}</strong> (₱${formatAmount(exp.amount)})? This change will take effect when saved.`,
+          body: `Are you sure you want to delete <strong>${exp.desc || 'this expense'}</strong> (₱${formatAmount(exp.amount)})?`,
           buttons: [
             { id: 'cancel', label: 'Cancel', className: 'btn-secondary' },
             { id: 'confirm', label: 'Delete', className: 'btn-danger' }
@@ -198,13 +194,23 @@ export function openDailyExpensesModal(
         if (choice === 'confirm') {
           currentExpenses.splice(idx, 1)
           renderList()
+          await autoSave()
           showToast(`Expense "${exp.desc || 'Entry'}" removed`, 'info')
         }
       })
     })
   }
 
-  function handleAddExpense() {
+  async function autoSave(): Promise<void> {
+    const res = await window.api.saveDayExpenses(date, currentExpenses)
+    if (!res.ok) {
+      showToast(`Failed to save expenses: ${res.error}`, 'error')
+    } else {
+      onSave(currentExpenses)
+    }
+  }
+
+  async function handleAddExpense() {
     const desc = inpDesc.value.trim()
     const amt = parseFloat(inpAmt.value)
     const remarks = inpRemarks.value.trim()
@@ -231,6 +237,8 @@ export function openDailyExpensesModal(
     inpRemarks.value = ''
     inpDesc.focus()
     renderList()
+    await autoSave()
+    showToast(`Expense "${desc}" added ✓`, 'success')
   }
 
   btnAdd.addEventListener('click', handleAddExpense)
@@ -244,28 +252,6 @@ export function openDailyExpensesModal(
 
   btnClose.addEventListener('click', closeModal)
   btnCancel.addEventListener('click', closeModal)
-
-  btnSave.addEventListener('click', async () => {
-    btnSave.textContent = 'Saving...'
-    btnSave.setAttribute('disabled', 'true')
-    try {
-      const res = await window.api.saveDayExpenses(date, currentExpenses)
-      if (!res.ok) {
-        showToast(`Failed to save expenses: ${res.error}`, 'error')
-        btnSave.textContent = 'Save Expenses'
-        btnSave.removeAttribute('disabled')
-        return
-      }
-
-      showToast(`Saved ${currentExpenses.length} expense entr${currentExpenses.length === 1 ? 'y' : 'ies'} ✓`, 'success')
-      onSave(currentExpenses)
-      closeModal()
-    } catch (err) {
-      showToast(`Error saving expenses: ${String(err)}`, 'error')
-      btnSave.textContent = 'Save Expenses'
-      btnSave.removeAttribute('disabled')
-    }
-  })
 
   renderList()
   inpDesc.focus()

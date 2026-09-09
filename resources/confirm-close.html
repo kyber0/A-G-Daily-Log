@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Close App</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clr-bg:          #0f1115;
+      --clr-surface:     #171a21;
+      --clr-surface-2:   #1f242e;
+      --clr-border:      #2a303d;
+      --clr-primary:     #14b8a6;
+      --clr-primary-dim: #0d9488;
+      --clr-text:        #f1f5f9;
+      --clr-text-muted:  #94a3b8;
+      --clr-error:       #f87171;
+      --clr-error-bg:    rgba(248, 113, 113, 0.12);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 16px;
+      box-shadow: 0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: slideUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .icon-ring {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--clr-error-bg);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .icon-ring svg {
+      color: var(--clr-error);
+    }
+
+    .body {
+      flex: 1;
+      padding: 28px 28px 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    h2 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--clr-text);
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    p {
+      font-size: 13px;
+      color: var(--clr-text-muted);
+      line-height: 1.6;
+    }
+
+    .footer {
+      padding: 16px 28px;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid var(--clr-border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    button {
+      flex: 1;
+      height: 40px;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    #btn-cancel {
+      background: var(--clr-surface-2, #1f242e);
+      border: 1px solid var(--clr-border);
+      color: var(--clr-text-muted);
+    }
+    #btn-cancel:hover {
+      background: #2a303d;
+      color: var(--clr-text);
+    }
+    #btn-cancel:active {
+      transform: scale(0.97);
+    }
+
+    #btn-confirm {
+      background: linear-gradient(135deg, #f87171, #ef4444);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+    #btn-confirm:hover {
+      background: linear-gradient(135deg, #fb8585, #f55252);
+      box-shadow: 0 6px 18px rgba(239, 68, 68, 0.45);
+      transform: translateY(-1px);
+    }
+    #btn-confirm:active {
+      transform: scale(0.97) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="body">
+      <div class="icon-ring">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <h2>Close Application?</h2>
+      <p>Are you sure you want to exit?<br>Any unsynced data will be saved before closing.</p>
+    </div>
+    <div class="footer">
+      <button id="btn-cancel">Stay</button>
+      <button id="btn-confirm">Close App</button>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-confirm').addEventListener('click', () => {
+      window.electronConfirmClose.confirm()
+    })
+    document.getElementById('btn-cancel').addEventListener('click', () => {
+      window.electronConfirmClose.cancel()
+    })
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') window.electronConfirmClose.cancel()
+      if (e.key === 'Enter')  window.electronConfirmClose.confirm()
+    })
+  </script>
+</body>
+</html>
