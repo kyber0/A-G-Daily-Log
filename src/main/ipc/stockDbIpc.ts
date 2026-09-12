@@ -4,7 +4,7 @@ import type {
   IpcResult, StockDB, StockItem, StockMovement,
   RestockOrder, StockBuyer, StockCategory, StockItemRow
 } from '../../shared/types'
-import { getSupabase } from '../supabase/client'
+import { getSupabase, isJwtExpiredError, resetSupabaseClient } from '../supabase/client'
 import { isOnline } from '../store/syncEngine'
 import {
   getLocalDb, enqueueWrite,
@@ -21,15 +21,26 @@ export function registerStockDbIpc(): void {
         return buildStockDbFromCache()
       }
 
-      const sb = await getSupabase()
+      let sb = await getSupabase()
 
       // 1. Categories
-      const { data: catData, error: catErr } = await sb
+      let { data: catData, error: catErr } = await sb
         .from('categories')
         .select('id, name, sort_order')
         .order('sort_order', { ascending: true })
 
-      if (catErr) return { ok: false, error: catErr.message }
+      if (catErr && isJwtExpiredError(catErr.message)) {
+        console.warn('[stockDb:get] JWT expired on categories, resetting and retrying…')
+        resetSupabaseClient()
+        sb = await getSupabase()
+        const retry = await sb.from('categories').select('id, name, sort_order').order('sort_order', { ascending: true })
+        catData = retry.data
+        catErr = retry.error
+      }
+      if (catErr) {
+        console.warn('[stockDb:get] Category fetch error, falling back to cache:', catErr.message)
+        return buildStockDbFromCache()
+      }
 
       const categories: StockCategory[] = (catData || []).map(c => ({
         id: c.id,
@@ -38,12 +49,23 @@ export function registerStockDbIpc(): void {
       }))
 
       // 2. Buyers
-      const { data: buyerData, error: buyerErr } = await sb
+      let { data: buyerData, error: buyerErr } = await sb
         .from('buyers')
         .select('id, name, is_own_shop')
         .order('name', { ascending: true })
 
-      if (buyerErr) return { ok: false, error: buyerErr.message }
+      if (buyerErr && isJwtExpiredError(buyerErr.message)) {
+        console.warn('[stockDb:get] JWT expired on buyers, resetting and retrying…')
+        resetSupabaseClient()
+        sb = await getSupabase()
+        const retry = await sb.from('buyers').select('id, name, is_own_shop').order('name', { ascending: true })
+        buyerData = retry.data
+        buyerErr = retry.error
+      }
+      if (buyerErr) {
+        console.warn('[stockDb:get] Buyer fetch error, falling back to cache:', buyerErr.message)
+        return buildStockDbFromCache()
+      }
 
       const buyers: StockBuyer[] = (buyerData || []).map(b => ({
         id: b.id,
@@ -52,7 +74,7 @@ export function registerStockDbIpc(): void {
       }))
 
       // 3. Items
-      const { data: itemData, error: itemErr } = await sb
+      let { data: itemData, error: itemErr } = await sb
         .from('items')
         .select(`
           id, name, code, packing, dealer_price, srp,
@@ -65,7 +87,29 @@ export function registerStockDbIpc(): void {
         `)
         .order('name', { ascending: true })
 
-      if (itemErr) return { ok: false, error: itemErr.message }
+      if (itemErr && isJwtExpiredError(itemErr.message)) {
+        console.warn('[stockDb:get] JWT expired on items, resetting and retrying…')
+        resetSupabaseClient()
+        sb = await getSupabase()
+        const retry = await sb
+          .from('items')
+          .select(`
+            id, name, code, packing, dealer_price, srp,
+            batch_note, batch_date, low_stock_threshold,
+            created_at, updated_at,
+            category_id,
+            categories (
+              id, name
+            )
+          `)
+          .order('name', { ascending: true })
+        itemData = retry.data
+        itemErr = retry.error
+      }
+      if (itemErr) {
+        console.warn('[stockDb:get] Item fetch error, falling back to cache:', itemErr.message)
+        return buildStockDbFromCache()
+      }
 
       const items: StockItem[] = (itemData || []).map(i => {
         const catName = (i.categories as any)?.name || 'CONTAINERS'
@@ -106,7 +150,14 @@ export function registerStockDbIpc(): void {
           .order('date', { ascending: true })
           .range(from, from + pageSize - 1)
 
-        if (movErr) return { ok: false, error: movErr.message }
+        if (movErr) {
+          if (isJwtExpiredError(movErr.message)) {
+            console.warn('[stockDb:get] JWT expired on movements, resetting client')
+            resetSupabaseClient()
+          }
+          console.warn('[stockDb:get] Movements fetch error, falling back to cache:', movErr.message)
+          return buildStockDbFromCache()
+        }
         if (!movChunk || movChunk.length === 0) break
         allMovements = allMovements.concat(movChunk)
         if (movChunk.length < pageSize) break
@@ -132,12 +183,19 @@ export function registerStockDbIpc(): void {
       })
 
       // 5. Restock Orders
-      const { data: orderData, error: orderErr } = await sb
+      let { data: orderData, error: orderErr } = await sb
         .from('restock_orders')
         .select('id, so_number, order_date, received_date, amount, trucking_fee, note')
         .order('order_date', { ascending: false })
 
-      if (orderErr) return { ok: false, error: orderErr.message }
+      if (orderErr) {
+        if (isJwtExpiredError(orderErr.message)) {
+          console.warn('[stockDb:get] JWT expired on restock orders, resetting client')
+          resetSupabaseClient()
+        }
+        console.warn('[stockDb:get] Restock orders fetch error, falling back to cache:', orderErr.message)
+        return buildStockDbFromCache()
+      }
 
       const restockOrders: RestockOrder[] = (orderData || []).map(o => {
         const amt = Number(o.amount) || 0

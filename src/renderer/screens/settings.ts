@@ -386,9 +386,19 @@ export function renderSettingsScreen(
           box-shadow: 0 2px 8px var(--clr-primary-glow);
         }
         /* Custom Dropdown Filter UI */
+        .st-pricing-card {
+          overflow: visible !important;
+          min-height: 440px;
+        }
+        .st-pricing-card .st-card-header {
+          border-radius: 16px 16px 0 0;
+        }
         .st-dropdown-wrap {
           position: relative;
           display: inline-flex;
+        }
+        .st-dropdown-wrap.open {
+          z-index: 100;
         }
         .st-dropdown-trigger {
           display: inline-flex;
@@ -429,15 +439,16 @@ export function renderSettingsScreen(
           position: absolute;
           top: calc(100% + 6px);
           left: 0;
-          z-index: 100;
-          min-width: 220px;
-          max-height: 280px;
+          z-index: 999;
+          min-width: 230px;
+          max-height: 320px;
           overflow-y: auto;
           background: var(--clr-surface-1, var(--clr-surface));
           border: 1px solid var(--clr-border);
           border-radius: 12px;
-          box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.06);
-          backdrop-filter: blur(16px);
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           padding: 6px;
           display: none;
           flex-direction: column;
@@ -1032,7 +1043,7 @@ export function renderSettingsScreen(
           <div style="display:flex;flex-direction:column;gap:18px;">
 
             <!-- Price Matrix Card -->
-            <div class="st-card">
+            <div class="st-card st-pricing-card">
               <!-- Card Header with actions -->
               <div class="st-card-header">
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -1052,7 +1063,7 @@ export function renderSettingsScreen(
               </div>
 
               <!-- Compact Filter Row -->
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface);">
+              <div class="st-filter-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface);position:relative;z-index:40;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <div class="st-filter-pills">
                     <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'all' ? 'active' : ''}" data-cat="all">
@@ -1179,7 +1190,7 @@ export function renderSettingsScreen(
 
               <!-- Quick Price Adjust Strip (Fixed Peso Amounts) -->
               ${filteredPrices.length > 0 ? `
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 20px;background:rgba(14,165,233,0.03);border-bottom:1px solid var(--clr-border);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 20px;background:rgba(14,165,233,0.03);border-bottom:1px solid var(--clr-border);position:relative;z-index:10;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;display:flex;align-items:center;gap:5px;">
                     ${Icons.dollar} Add / Deduct Price:
@@ -1206,7 +1217,7 @@ export function renderSettingsScreen(
               ` : ''}
 
               <!-- Price Matrix Table -->
-              <div style="overflow-x:auto;">
+              <div style="overflow-x:auto;position:relative;z-index:1;border-radius:0 0 16px 16px;">
                 <table class="st-grid-table" id="price-table">
                   <thead>
                     <tr>

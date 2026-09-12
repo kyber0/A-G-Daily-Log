@@ -11,15 +11,17 @@ let _initPromise: Promise<SupabaseClient> | null = null
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function isJwtExpiredError(err: unknown): boolean {
-  const msg = String(err).toLowerCase()
+export function isJwtExpiredError(err: unknown): boolean {
+  if (!err) return false
+  const msg = (typeof err === 'string' ? err : (err as any).message || String(err)).toLowerCase()
   return (
     msg.includes('jwt expired') ||
     msg.includes('invalid jwt') ||
     msg.includes('token is expired') ||
     msg.includes('not authenticated') ||
     msg.includes('session_not_found') ||
-    msg.includes('invalid refresh token')
+    msg.includes('invalid refresh token') ||
+    msg.includes('pgrst301')
   )
 }
 
@@ -54,10 +56,10 @@ async function _createAndSignIn(): Promise<SupabaseClient> {
     // No cached session — sign in fresh
     await _doSignIn(client, config)
   } else {
-    // Cached session exists — check whether it has already expired
-    const expiresAt = session.expires_at // seconds since epoch
+    // Cached session exists — verify it isn't expired
+    const expiresAt = session.expires_at
     const nowSec = Math.floor(Date.now() / 1000)
-    if (expiresAt && nowSec >= expiresAt - 30) {
+    if (expiresAt && nowSec >= expiresAt - 60) {
       console.warn('[supabase] Session expired or about to expire — refreshing token…')
       const { data: refreshed, error: refreshErr } = await client.auth.refreshSession()
       if (refreshErr || !refreshed.session) {
@@ -68,7 +70,6 @@ async function _createAndSignIn(): Promise<SupabaseClient> {
   }
 
   // Proactively reset the cache if Supabase's background refresh ever fails
-  // (e.g. the computer woke from sleep long after the token expired)
   client.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') {
       console.warn('[supabase] Auth state → SIGNED_OUT — resetting cached client.')
@@ -84,8 +85,32 @@ async function _createAndSignIn(): Promise<SupabaseClient> {
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Returns an authenticated Supabase client.
+ * Proactively verifies session validity on every call to prevent stale JWT errors.
+ */
 export async function getSupabase(): Promise<SupabaseClient> {
-  if (_client) return _client
+  if (_client) {
+    try {
+      const { data: { session } } = await _client.auth.getSession()
+      const nowSec = Math.floor(Date.now() / 1000)
+      if (!session || (session.expires_at && nowSec >= session.expires_at - 60)) {
+        console.warn('[supabase] Cached client session missing or expired — refreshing…')
+        const { data: refreshed, error: refreshErr } = await _client.auth.refreshSession()
+        if (refreshErr || !refreshed.session) {
+          console.warn('[supabase] Token refresh failed — re-authenticating with password…')
+          const config = readConfig()
+          await _doSignIn(_client, config)
+        }
+      }
+      return _client
+    } catch (err) {
+      console.warn('[supabase] Session check failed, re-creating client:', err)
+      _client = null
+      _initPromise = null
+    }
+  }
+
   if (_initPromise) return _initPromise
 
   _initPromise = _createAndSignIn()
@@ -108,11 +133,6 @@ export async function getSupabase(): Promise<SupabaseClient> {
  * If the operation throws OR returns a { error } object whose message
  * indicates an expired/invalid JWT, the cached client is reset and the
  * operation is retried exactly once after a fresh sign-in.
- *
- * Example:
- *   const { data, error } = await withSupabaseRetry((sb) =>
- *     sb.from('table').select('*')
- *   )
  */
 export async function withSupabaseRetry<T>(
   fn: (sb: SupabaseClient) => Promise<T>
@@ -126,8 +146,7 @@ export async function withSupabaseRetry<T>(
   } catch (err) {
     if (!isJwtExpiredError(err)) throw err
     console.warn('[supabase] JWT error (thrown) — resetting and retrying once…', String(err))
-    _client = null
-    _initPromise = null
+    resetSupabaseClient()
     sb = await getSupabase()
     return fn(sb)
   }
@@ -137,8 +156,7 @@ export async function withSupabaseRetry<T>(
     const qErr = (result as any).error
     if (qErr && isJwtExpiredError(qErr.message ?? qErr)) {
       console.warn('[supabase] JWT error (in result.error) — resetting and retrying once…', qErr.message)
-      _client = null
-      _initPromise = null
+      resetSupabaseClient()
       sb = await getSupabase()
       return fn(sb)
     }
@@ -177,9 +195,7 @@ export async function testSupabaseAuth(
 
     const { data, error } = await client.auth.signInWithPassword({ email, password: pass })
     if (error) return { ok: false, error: error.message }
-    if (!data.session) {
-      return { ok: false, error: 'Authentication succeeded but no active session was returned.' }
-    }
+    if (!data.session) return { ok: false, error: 'Authentication succeeded but no active session was returned.' }
 
     return { ok: true }
   } catch (e: any) {
