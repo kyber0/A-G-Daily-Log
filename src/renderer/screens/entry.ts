@@ -170,7 +170,7 @@ export function renderEntryScreen(
 
       <!-- Closed day banner (hidden by default) -->
       <div id="closed-day-banner" class="closed-day-banner hidden">
-        <span id="sunday-indicator" class="sunday-indicator hidden">🗓️ Sunday</span>
+        <span id="sunday-indicator" class="sunday-indicator hidden" style="display:inline-flex;align-items:center;gap:6px;">${Icons.calendar} Sunday</span>
         <span id="closed-day-reason"></span>
       </div>
 
@@ -262,8 +262,10 @@ export function renderEntryScreen(
           <!-- Closed day overlay — shown over the table when day is marked closed -->
           <div id="closed-table-overlay" class="closed-table-overlay hidden">
             <div class="closed-table-overlay__inner">
-              <span id="overlay-sunday-indicator" class="sunday-indicator hidden" style="margin-bottom: 16px; display: inline-flex;">🗓️ Sunday</span>
-              <span style="font-size:48px; margin-bottom: 12px; display: block;">🔴</span>
+              <span id="overlay-sunday-indicator" class="sunday-indicator hidden" style="margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px;">${Icons.calendar} Sunday</span>
+              <div style="width:56px; height:56px; border-radius:50%; background:var(--clr-error-bg); color:var(--clr-error); display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto;">
+                ${Icons.lock}
+              </div>
               <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--clr-error); opacity:0.7; margin-bottom:8px;">Day Closed</p>
               <strong id="closed-overlay-reason" style="font-size:22px; font-weight:700; color:var(--clr-text); margin-bottom: 20px; display: block;">Closed</strong>
               <p style="color:var(--clr-text-muted); margin-bottom: 24px; font-size:13px;">No new sales can be added. You can reopen this day if needed.</p>

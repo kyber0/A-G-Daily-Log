@@ -1,10 +1,10 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+﻿import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import type {
   IpcResult, StockDB, StockItem, StockMovement,
   RestockOrder, StockBuyer, StockCategory, StockItemRow
 } from '../../shared/types'
-import { getSupabase, isJwtExpiredError, resetSupabaseClient } from '../supabase/client'
+import { getSupabase, isJwtExpiredError, resetSupabaseClient, withSupabaseRetry } from '../supabase/client'
 import { isOnline } from '../store/syncEngine'
 import {
   getLocalDb, enqueueWrite,
@@ -13,8 +13,16 @@ import {
   cacheItems, cacheCategories, cacheBuyers, cacheStockMovements, cacheRestockOrders
 } from '../store/localDb'
 
+/**
+ * getSb() - JWT-resilient Supabase client for write handlers.
+ * Uses withSupabaseRetry to automatically re-auth and retry once if the
+ * session JWT is expired before or during the call.
+ */
+async function getSb() {
+  return withSupabaseRetry(async (sb) => sb)
+}
 export function registerStockDbIpc(): void {
-  // ── Read Full Stock DB from Supabase (with offline fallback) ──────────────
+  // â”€â”€ Read Full Stock DB from Supabase (with offline fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:get', async (): Promise<IpcResult<StockDB & { itemRows: StockItemRow[] }>> => {
     try {
       if (!isOnline()) {
@@ -30,7 +38,7 @@ export function registerStockDbIpc(): void {
         .order('sort_order', { ascending: true })
 
       if (catErr && isJwtExpiredError(catErr.message)) {
-        console.warn('[stockDb:get] JWT expired on categories, resetting and retrying…')
+        console.warn('[stockDb:get] JWT expired on categories, resetting and retryingâ€¦')
         resetSupabaseClient()
         sb = await getSupabase()
         const retry = await sb.from('categories').select('id, name, sort_order').order('sort_order', { ascending: true })
@@ -55,7 +63,7 @@ export function registerStockDbIpc(): void {
         .order('name', { ascending: true })
 
       if (buyerErr && isJwtExpiredError(buyerErr.message)) {
-        console.warn('[stockDb:get] JWT expired on buyers, resetting and retrying…')
+        console.warn('[stockDb:get] JWT expired on buyers, resetting and retryingâ€¦')
         resetSupabaseClient()
         sb = await getSupabase()
         const retry = await sb.from('buyers').select('id, name, is_own_shop').order('name', { ascending: true })
@@ -88,7 +96,7 @@ export function registerStockDbIpc(): void {
         .order('name', { ascending: true })
 
       if (itemErr && isJwtExpiredError(itemErr.message)) {
-        console.warn('[stockDb:get] JWT expired on items, resetting and retrying…')
+        console.warn('[stockDb:get] JWT expired on items, resetting and retryingâ€¦')
         resetSupabaseClient()
         sb = await getSupabase()
         const retry = await sb
@@ -115,7 +123,7 @@ export function registerStockDbIpc(): void {
         const catName = (i.categories as any)?.name || 'CONTAINERS'
         return {
           id: i.id,
-          itemLabel: `${i.code || i.id.substring(0, 8)} · ${i.name}`,
+          itemLabel: `${i.code || i.id.substring(0, 8)} Â· ${i.name}`,
           name: i.name,
           code: i.code || undefined,
           categoryId: i.category_id || catName,
@@ -166,7 +174,7 @@ export function registerStockDbIpc(): void {
 
       const movements: StockMovement[] = allMovements.map(m => {
         const itm = m.items || {}
-        const itmLabel = `${itm.code || m.item_id?.substring(0, 8) || ''} · ${itm.name || 'Item'}`
+        const itmLabel = `${itm.code || m.item_id?.substring(0, 8) || ''} Â· ${itm.name || 'Item'}`
         return {
           id: m.id,
           itemId: m.item_id,
@@ -314,15 +322,15 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Migrate Legacy (Supabase is already active) ───────────────────────────
+  // â”€â”€ Migrate Legacy (Supabase is already active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:migrateLegacy', async (): Promise<IpcResult<{ success: boolean; message: string }>> => {
     return { ok: true, data: { success: true, message: 'Supabase cloud database is active and synced.' } }
   })
 
-  // ── Add Item ─────────────────────────────────────────────────────────────
+  // â”€â”€ Add Item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:addItem', async (_e, payload: Omit<StockItem, 'id' | 'createdAt' | 'isArchived' | 'itemLabel'>): Promise<IpcResult<StockItem>> => {
     try {
-      // ── Offline: queue locally and return a temporary item ─────────────────
+      // â”€â”€ Offline: queue locally and return a temporary item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (!isOnline()) {
         const tempId = randomUUID()
         const now = new Date().toISOString()
@@ -359,7 +367,7 @@ export function registerStockDbIpc(): void {
           ok: true,
           data: {
             id: tempId,
-            itemLabel: `${cacheRow.code || tempId.substring(0, 8)} · ${cacheRow.name}`,
+            itemLabel: `${cacheRow.code || tempId.substring(0, 8)} Â· ${cacheRow.name}`,
             name: cacheRow.name,
             code: cacheRow.code || undefined,
             categoryId: categoryName,
@@ -376,8 +384,8 @@ export function registerStockDbIpc(): void {
         }
       }
 
-      // ── Online ─────────────────────────────────────────────────────────────
-      const sb = await getSupabase()
+      // â”€â”€ Online â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      const sb = await getSb()
 
       // Resolve category safely without UUID cast crash
       let categoryId: string | null = null
@@ -431,7 +439,7 @@ export function registerStockDbIpc(): void {
       const catName = (data.categories as any)?.name || 'CONTAINERS'
       const item: StockItem = {
         id: data.id,
-        itemLabel: `${data.code || data.id.substring(0, 8)} · ${data.name}`,
+        itemLabel: `${data.code || data.id.substring(0, 8)} Â· ${data.name}`,
         name: data.name,
         code: data.code || undefined,
         categoryId: data.category_id || catName,
@@ -453,10 +461,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Update Item ───────────────────────────────────────────────────────────
+  // â”€â”€ Update Item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:updateItem', async (_e, id: string, patch: Partial<StockItem>): Promise<IpcResult<StockItem>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       const updateData: any = { updated_at: new Date().toISOString() }
       if (patch.name !== undefined) updateData.name = patch.name.trim()
@@ -535,7 +543,7 @@ export function registerStockDbIpc(): void {
       const catName = (data.categories as any)?.name || 'CONTAINERS'
       const item: StockItem = {
         id: data.id,
-        itemLabel: `${data.code || data.id.substring(0, 8)} · ${data.name}`,
+        itemLabel: `${data.code || data.id.substring(0, 8)} Â· ${data.name}`,
         name: data.name,
         code: data.code || undefined,
         categoryId: data.category_id || catName,
@@ -557,10 +565,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Archive / Delete Item ─────────────────────────────────────────────────
+  // â”€â”€ Archive / Delete Item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:archiveItem', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { error } = await sb.from('items').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
       try {
@@ -575,7 +583,7 @@ export function registerStockDbIpc(): void {
 
   ipcMain.handle('stockDb:deleteItem', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { error } = await sb.from('items').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
       try {
@@ -589,10 +597,10 @@ export function registerStockDbIpc(): void {
   })
 
 
-  // ── Add Movement ──────────────────────────────────────────────────────────
+  // â”€â”€ Add Movement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:addMovement', async (_e, mov: Omit<StockMovement, 'id'>): Promise<IpcResult<StockMovement>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       let itemId = mov.itemId
 
@@ -652,10 +660,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Update Movement ───────────────────────────────────────────────────────
+  // â”€â”€ Update Movement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:updateMovement', async (_e, id: string, patch: Partial<StockMovement>): Promise<IpcResult<StockMovement>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       const updateData: any = {}
       if (patch.date !== undefined) updateData.date = patch.date
@@ -695,10 +703,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Delete Movement ───────────────────────────────────────────────────────
+  // â”€â”€ Delete Movement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:deleteMovement', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { error } = await sb.from('stock_movements').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
       return { ok: true, data: undefined }
@@ -707,10 +715,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Add Buyer ─────────────────────────────────────────────────────────────
+  // â”€â”€ Add Buyer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:addBuyer', async (_e, buyer: Omit<StockBuyer, 'id'>): Promise<IpcResult<StockBuyer>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { data, error } = await sb
         .from('buyers')
         .insert({
@@ -745,10 +753,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Update Buyer ──────────────────────────────────────────────────────────
+  // â”€â”€ Update Buyer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:updateBuyer', async (_e, id: string, patch: Partial<StockBuyer>): Promise<IpcResult<StockBuyer>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       const updateData: any = {}
       if (patch.name !== undefined) updateData.name = patch.name.trim()
@@ -788,10 +796,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Delete Buyer ──────────────────────────────────────────────────────────
+  // â”€â”€ Delete Buyer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:deleteBuyer', async (_e, idOrName: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrName)
 
       // Find buyer record first
@@ -831,10 +839,10 @@ export function registerStockDbIpc(): void {
   })
 
 
-  // ── Add Restock Order ─────────────────────────────────────────────────────
+  // â”€â”€ Add Restock Order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:addRestockOrder', async (_e, order: Omit<RestockOrder, 'id'>): Promise<IpcResult<RestockOrder>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       const amount = order.amount || 0
       const truckingFee = order.truckingFee || 0
@@ -873,10 +881,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Update Restock Order ──────────────────────────────────────────────────
+  // â”€â”€ Update Restock Order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:updateRestockOrder', async (_e, id: string, patch: Partial<RestockOrder>): Promise<IpcResult<RestockOrder>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
 
       const updateData: any = {}
       if (patch.soNumber !== undefined) updateData.so_number = patch.soNumber || null
@@ -916,10 +924,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Delete Restock Order ──────────────────────────────────────────────────
+  // â”€â”€ Delete Restock Order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:deleteRestockOrder', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { error } = await sb.from('restock_orders').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
       return { ok: true, data: undefined }
@@ -928,10 +936,10 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── Categories ────────────────────────────────────────────────────────────
+  // â”€â”€ Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:addCategory', async (_e, name: string): Promise<IpcResult<StockCategory>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { data, error } = await sb
         .from('categories')
         .insert({ name: name.trim() })
@@ -955,7 +963,7 @@ export function registerStockDbIpc(): void {
 
   ipcMain.handle('stockDb:deleteCategory', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
-      const sb = await getSupabase()
+      const sb = await getSb()
       const { error } = await sb.from('categories').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
       return { ok: true, data: undefined }
@@ -964,7 +972,7 @@ export function registerStockDbIpc(): void {
     }
   })
 
-  // ── File Picking / No-op File Ops ─────────────────────────────────────────
+  // â”€â”€ File Picking / No-op File Ops â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:pickExcelFile', async (): Promise<IpcResult<string | undefined>> => {
     try {
       const win = BrowserWindow.getFocusedWindow() || undefined
@@ -991,7 +999,7 @@ export function registerStockDbIpc(): void {
   })
 }
 
-// ── Build full StockDB from local SQLite cache ────────────────────────────────
+// â”€â”€ Build full StockDB from local SQLite cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildStockDbFromCache(): IpcResult<StockDB & { itemRows: StockItemRow[] }> {
   try {
     const rawCats = getCachedCategories()
@@ -1014,7 +1022,7 @@ function buildStockDbFromCache(): IpcResult<StockDB & { itemRows: StockItemRow[]
 
     const items: StockItem[] = rawItems.map(i => ({
       id: i.id as string,
-      itemLabel: `${i.code || String(i.id).substring(0, 8)} · ${i.name}`,
+      itemLabel: `${i.code || String(i.id).substring(0, 8)} Â· ${i.name}`,
       name: i.name as string,
       code: (i.code as string) || undefined,
       categoryId: (i.category_id as string) || (i.category_name as string) || 'CONTAINERS',
@@ -1032,7 +1040,7 @@ function buildStockDbFromCache(): IpcResult<StockDB & { itemRows: StockItemRow[]
     const movements: StockMovement[] = rawMovements.map(m => ({
       id: m.id as string,
       itemId: m.item_id as string,
-      itemLabel: `${m.item_code || String(m.item_id).substring(0, 8)} · ${m.item_name || 'Item'}`,
+      itemLabel: `${m.item_code || String(m.item_id).substring(0, 8)} Â· ${m.item_name || 'Item'}`,
       direction: m.direction as 'in' | 'out',
       quantity: Number(m.quantity) || 0,
       buyerId: (m.buyer_id as string) || undefined,

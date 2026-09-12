@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { IpcResult, LogEntry } from '../../shared/types'
 import { appendAuditLog, getAuditLogs } from '../store/localDb'
-import { getSupabase } from '../supabase/client'
+import { withSupabaseRetry } from '../supabase/client'
 
 // ── Timestamp helpers ─────────────────────────────────────────────────────────
 
@@ -75,10 +75,10 @@ export function registerLogIpc(): void {
     }
 
     // 2. Mirror to Supabase audit_logs (best-effort, non-blocking)
-    getSupabase().then(sb => sb.from('audit_logs').insert({
+    withSupabaseRetry(async (sb) => sb.from('audit_logs').insert({
       log_type: 'water', action, details, timestamp: tsIso
     })).then(res => {
-      if (res && 'error' in res && res.error) console.warn('[log:append] Supabase audit_logs insert failed (non-fatal):', res.error.message)
+      if (res && 'error' in res && res.error) console.warn('[log:append] Supabase audit_logs insert failed (non-fatal):', (res.error as any).message)
     }).catch(() => {})
   })
 
@@ -95,28 +95,24 @@ export function registerLogIpc(): void {
 
       // 2. Supplement with Supabase for any entries not in local cache
       try {
-        const sb = await getSupabase()
-        const startIso = `${month}-01T00:00:00.000Z`
-        const endIso = monthEndIso(month)
-        const { data } = await sb
-          .from('audit_logs')
-          .select('action, details, timestamp')
-          .eq('log_type', 'water')
-          .gte('timestamp', startIso)
-          .lte('timestamp', endIso)
-          .order('timestamp', { ascending: false })
+        await withSupabaseRetry(async (sb) => {
+          const startIso = `${month}-01T00:00:00.000Z`
+          const endIso = monthEndIso(month)
+          const { data } = await sb
+            .from('audit_logs')
+            .select('action, details, timestamp')
+            .eq('log_type', 'water')
+            .gte('timestamp', startIso)
+            .lte('timestamp', endIso)
+            .order('timestamp', { ascending: false })
 
-        for (const row of data || []) {
-          let ts = row.timestamp
-          try {
-            const d = new Date(row.timestamp)
-            if (!isNaN(d.getTime())) ts = formatTs(d)
-          } catch {}
-          const key = `${ts}|${row.action}|${row.details}`
-          if (!entriesMap.has(key)) {
-            entriesMap.set(key, { timestamp: ts, action: row.action, details: row.details })
+          for (const row of data || []) {
+            let ts = row.timestamp
+            try { const d = new Date(row.timestamp); if (!isNaN(d.getTime())) ts = formatTs(d) } catch {}
+            const key = `${ts}|${row.action}|${row.details}`
+            if (!entriesMap.has(key)) entriesMap.set(key, { timestamp: ts, action: row.action, details: row.details })
           }
-        }
+        })
       } catch {}
 
       const sorted = Array.from(entriesMap.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp))
@@ -141,10 +137,10 @@ export function registerLogIpc(): void {
     }
 
     // 2. Mirror to Supabase (best-effort)
-    getSupabase().then(sb => sb.from('audit_logs').insert({
+    withSupabaseRetry(async (sb) => sb.from('audit_logs').insert({
       log_type: 'item', action, details, timestamp: tsIso
     })).then(res => {
-      if (res && 'error' in res && res.error) console.warn('[itemLog:append] Supabase audit_logs insert failed (non-fatal):', res.error.message)
+      if (res && 'error' in res && res.error) console.warn('[itemLog:append] Supabase audit_logs insert failed (non-fatal):', (res.error as any).message)
     }).catch(() => {})
   })
 
@@ -161,28 +157,24 @@ export function registerLogIpc(): void {
 
       // 2. Supplement from Supabase
       try {
-        const sb = await getSupabase()
-        const startIso = `${month}-01T00:00:00.000Z`
-        const endIso = monthEndIso(month)
-        const { data } = await sb
-          .from('audit_logs')
-          .select('action, details, timestamp')
-          .eq('log_type', 'item')
-          .gte('timestamp', startIso)
-          .lte('timestamp', endIso)
-          .order('timestamp', { ascending: false })
+        await withSupabaseRetry(async (sb) => {
+          const startIso = `${month}-01T00:00:00.000Z`
+          const endIso = monthEndIso(month)
+          const { data } = await sb
+            .from('audit_logs')
+            .select('action, details, timestamp')
+            .eq('log_type', 'item')
+            .gte('timestamp', startIso)
+            .lte('timestamp', endIso)
+            .order('timestamp', { ascending: false })
 
-        for (const row of data || []) {
-          let ts = row.timestamp
-          try {
-            const d = new Date(row.timestamp)
-            if (!isNaN(d.getTime())) ts = formatTs(d)
-          } catch {}
-          const key = `${ts}|${row.action}|${row.details}`
-          if (!entriesMap.has(key)) {
-            entriesMap.set(key, { timestamp: ts, action: row.action, details: row.details })
+          for (const row of data || []) {
+            let ts = row.timestamp
+            try { const d = new Date(row.timestamp); if (!isNaN(d.getTime())) ts = formatTs(d) } catch {}
+            const key = `${ts}|${row.action}|${row.details}`
+            if (!entriesMap.has(key)) entriesMap.set(key, { timestamp: ts, action: row.action, details: row.details })
           }
-        }
+        })
       } catch {}
 
       const sorted = Array.from(entriesMap.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp))

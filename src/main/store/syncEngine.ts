@@ -1,6 +1,6 @@
 import { net, ipcMain, BrowserWindow } from 'electron'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getSupabase } from '../supabase/client'
+import { getSupabase, isJwtExpiredError, resetSupabaseClient } from '../supabase/client'
 import { runInitialSync } from './initialSync'
 import {
   getPendingQueue,
@@ -67,6 +67,17 @@ export function startSyncEngine(): void {
       await drainQueue()
     }
   }, 15_000)
+
+  // Proactive token keep-alive: call getSupabase() every 5 minutes so the JWT
+  // is always refreshed before it expires, even when the app is idle.
+  setInterval(async () => {
+    if (!isOnline()) return
+    try {
+      await getSupabase()
+    } catch (e) {
+      console.warn('[syncEngine] Background token keep-alive failed:', e)
+    }
+  }, 5 * 60 * 1000) // every 5 minutes
 }
 
 export function stopSyncEngine(): void {
@@ -81,7 +92,7 @@ export async function drainQueue(): Promise<{ synced: number; failed: number; de
   if (_isDraining) return { synced: 0, failed: 0, dead: 0 }
   _isDraining = true
 
-  const sb = await getSupabase()
+  let sb = await getSupabase()
   const pending = getPendingQueue()
   let synced = 0
   let failed = 0
@@ -109,6 +120,14 @@ export async function drainQueue(): Promise<{ synced: number; failed: number; de
       synced++
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
+      // If it's a JWT error, reset the client and get a fresh one for subsequent items
+      if (isJwtExpiredError(e)) {
+        console.warn('[syncEngine] JWT expired mid-drain — re-authenticating before next item…')
+        resetSupabaseClient()
+        try { sb = await getSupabase() } catch (authErr) {
+          console.error('[syncEngine] Re-auth failed mid-drain:', authErr)
+        }
+      }
       markQueueItem(item.id, 'error', msg)
       console.error(`[syncEngine] Failed to replay queue item ${item.id} on ${item.table_name} (attempt ${item.attempts + 1}/${MAX_SYNC_ATTEMPTS}):`, msg)
       failed++
@@ -177,7 +196,34 @@ async function replayOperation(sb: SupabaseClient, item: SyncQueueItem): Promise
 
 // ── Full table sync (populate local cache from Supabase) ──────────────────────
 export async function syncTableToCache(tableName: string): Promise<void> {
-  const sb = await getSupabase()
+  let sb: SupabaseClient
+  try {
+    sb = await getSupabase()
+  } catch (authErr) {
+    console.warn('[syncEngine] syncTableToCache: auth failed, skipping sync for', tableName, authErr)
+    return
+  }
+
+  // Wrap the actual sync with a single JWT-retry
+  try {
+    await _syncTable(sb, tableName)
+  } catch (e: unknown) {
+    if (isJwtExpiredError(e)) {
+      console.warn('[syncEngine] syncTableToCache: JWT expired mid-sync for', tableName, '— re-authing and retrying once…')
+      resetSupabaseClient()
+      try {
+        sb = await getSupabase()
+        await _syncTable(sb, tableName)
+      } catch (retryErr) {
+        console.error('[syncEngine] syncTableToCache: retry failed for', tableName, retryErr)
+      }
+    } else {
+      console.error('[syncEngine] syncTableToCache failed for', tableName, e)
+    }
+  }
+}
+
+async function _syncTable(sb: SupabaseClient, tableName: string): Promise<void> {
   const pageSize = 1000
 
   switch (tableName) {

@@ -197,7 +197,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
     if (db.isLegacySingleSheet) {
       legacyBanner = `
         <div class="legacy-banner">
-          <div style="color:#f59e0b;font-size:24px;">${Icons.info || '⚠️'}</div>
+          <div style="color:#f59e0b;font-size:24px;display:flex;align-items:center;">${Icons.info}</div>
           <div style="flex:1">
             <div style="font-weight:700;font-size:14px;color:var(--clr-text);margin-bottom:2px;">Legacy Format Detected</div>
             <div style="font-size:12px;color:var(--clr-text-muted);">This workbook is using the old single-sheet layout. Upgrade to unlock the 7-sheet relational transaction ledger.</div>

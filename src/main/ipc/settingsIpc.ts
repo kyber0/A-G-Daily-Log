@@ -2,7 +2,7 @@ import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import type { AppConfig, IpcResult } from '../../shared/types'
 import { readConfig, writeConfig } from '../store/config'
-import { testSupabaseAuth, getSupabase } from '../supabase/client'
+import { testSupabaseAuth, withSupabaseRetry } from '../supabase/client'
 import {
   getLocalDb,
   enqueueWrite,
@@ -69,7 +69,7 @@ export async function syncRefillSettingsToDatabase(
 
   // ── 2. Supabase Cloud Sync ──────────────────────────────────────────────────
   try {
-    const sb = await getSupabase()
+    await withSupabaseRetry(async (sb) => {
 
     // 2a. Sync Container Types
     const { data: dbContainers } = await sb.from('refill_container_types').select('id, raw_name')
@@ -195,6 +195,7 @@ export async function syncRefillSettingsToDatabase(
         pricesSynced++
       }
     }
+    })
   } catch (err: any) {
     console.warn('[settingsIpc] Supabase sync skipped or offline:', err?.message || err)
     // Offline queue fallback

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import type { IpcResult, HistoryDay, SaleRow, SaleMode } from '../../shared/types'
-import { getSupabase } from '../supabase/client'
+import { withSupabaseRetry } from '../supabase/client'
 import { isOnline } from '../store/syncEngine'
 import { getCachedHistoryDays, getCachedRefillSalesByDate } from '../store/localDb'
 
@@ -45,30 +45,30 @@ export function registerHistoryIpc(): void {
   /** Load full SaleRow[] for a given date */
   ipcMain.handle('history:loadDay', async (_event, date: string): Promise<IpcResult<SaleRow[]>> => {
     try {
-      const sb = await getSupabase()
-      const { data, error } = await sb
-        .from('refill_sales')
-        .select('sn, container_type_raw, water_type_raw, quantity, mode, unit_price')
-        .eq('date', date)
-        .order('sn', { ascending: true })
+      return await withSupabaseRetry(async (sb) => {
+        const { data, error } = await sb
+          .from('refill_sales')
+          .select('sn, container_type_raw, water_type_raw, quantity, mode, unit_price')
+          .eq('date', date)
+          .order('sn', { ascending: true })
 
-      if (error) return { ok: false, error: error.message }
+        if (error) return { ok: false, error: error.message }
 
-      const rows: SaleRow[] = (data || []).map((r, idx) => {
-        let mode: SaleMode = 'PICKUP'
-        if (r.mode === 'deliver') mode = 'DELIVER'
+        const rows: SaleRow[] = (data || []).map((r, idx) => {
+          let mode: SaleMode = 'PICKUP'
+          if (r.mode === 'deliver') mode = 'DELIVER'
+          return {
+            sn: r.sn || idx + 1,
+            container: r.container_type_raw || '',
+            water: r.water_type_raw || '',
+            qty: Number(r.quantity) || 0,
+            mode,
+            price: Number(r.unit_price) || 0
+          }
+        })
 
-        return {
-          sn: r.sn || idx + 1,
-          container: r.container_type_raw || '',
-          water: r.water_type_raw || '',
-          qty: Number(r.quantity) || 0,
-          mode,
-          price: Number(r.unit_price) || 0
-        }
+        return { ok: true, data: rows }
       })
-
-      return { ok: true, data: rows }
     } catch (e: unknown) {
       // ── Offline fallback ────────────────────────────────────────────────
       console.warn('[history:loadDay] Offline fallback:', String(e))
@@ -88,7 +88,7 @@ export function registerHistoryIpc(): void {
 
 // ── Supabase fetch + aggregate ─────────────────────────────────────────────────
 async function refreshHistoryCacheFromSupabase(): Promise<IpcResult<HistoryDay[]>> {
-  const sb = await getSupabase()
+  return withSupabaseRetry(async (sb) => {
   const pageSize = 1000
 
   // 1. Sales (paginated)
@@ -162,9 +162,10 @@ async function refreshHistoryCacheFromSupabase(): Promise<IpcResult<HistoryDay[]
     })
   }
 
-  days.sort((a, b) => b.date.localeCompare(a.date))
-  _historyCache = days
-  return { ok: true, data: days }
+    days.sort((a, b) => b.date.localeCompare(a.date))
+    _historyCache = days
+    return { ok: true, data: days }
+  })
 }
 
 // ── Build history from local cache ───────────────────────────────────────────

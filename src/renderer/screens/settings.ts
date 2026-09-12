@@ -1064,26 +1064,56 @@ export function renderSettingsScreen(
 
               <!-- Compact Filter Row -->
               <div class="st-filter-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface);position:relative;z-index:40;">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                  <div class="st-filter-pills">
-                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'all' ? 'active' : ''}" data-cat="all">
-                      All <span style="font-size:11px;opacity:0.8;">(${cfg.priceTable.length})</span>
-                    </button>
-                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'gallon' ? 'active' : ''}" data-cat="gallon">
-                      💧 Gallon <span style="font-size:11px;opacity:0.8;">(${gallonRows.length})</span>
-                    </button>
-                    <button type="button" class="st-filter-btn st-price-cat-btn ${priceCategoryFilter === 'bottle' ? 'active' : ''}" data-cat="bottle">
-                      📦 Bottle <span style="font-size:11px;opacity:0.8;">(${bottleRows.length})</span>
-                    </button>
-                  </div>
+                  <!-- Custom Dropdown Filters (Side-by-Side: Category, Container, Water) -->
+                  <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <!-- Category Custom Dropdown (All / Gallon / Bottle on 1 list) -->
+                    <div class="st-dropdown-wrap" id="wrap-cat-filter">
+                      <button type="button" class="st-dropdown-trigger ${priceCategoryFilter !== 'all' ? 'active' : ''}" id="btn-cat-filter-trigger" title="Filter by Category (All, Gallon, Bottle)">
+                        <span style="display:flex;align-items:center;gap:5px;">
+                          <span style="display:flex;align-items:center;">
+                            ${priceCategoryFilter === 'gallon' ? Icons.droplet : priceCategoryFilter === 'bottle' ? Icons.package : Icons.layers}
+                          </span>
+                          <span style="max-width:95px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            ${priceCategoryFilter === 'gallon' ? 'Gallon' : priceCategoryFilter === 'bottle' ? 'Bottle' : 'All Types'}
+                          </span>
+                        </span>
+                        <span class="st-chevron" style="width:13px;height:13px;display:flex;align-items:center;">${Icons.chevronDown}</span>
+                      </button>
 
-                  <!-- Custom Dropdown Filters (Side-by-Side) -->
-                  <div style="display:inline-flex;align-items:center;gap:6px;">
+                      <div class="st-dropdown-menu" id="menu-cat-filter">
+                        <div style="padding:4px 8px 6px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--clr-text-dim);border-bottom:1px solid var(--clr-border);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+                          <span>Filter Category</span>
+                          <span>3 options</span>
+                        </div>
+                        <button type="button" class="st-dropdown-item ${priceCategoryFilter === 'all' ? 'selected' : ''}" data-cat="all">
+                          <div class="st-dropdown-item-content">
+                            <span style="display:flex;align-items:center;">${Icons.layers}</span>
+                            <span>All (${cfg.priceTable.length})</span>
+                          </div>
+                          ${priceCategoryFilter === 'all' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                        <div style="height:1px;background:var(--clr-border);margin:3px 0;"></div>
+                        <button type="button" class="st-dropdown-item ${priceCategoryFilter === 'gallon' ? 'selected' : ''}" data-cat="gallon">
+                          <div class="st-dropdown-item-content">
+                            <span style="display:flex;align-items:center;">${Icons.droplet}</span>
+                            <span>Gallon (${gallonRows.length})</span>
+                          </div>
+                          ${priceCategoryFilter === 'gallon' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                        <button type="button" class="st-dropdown-item ${priceCategoryFilter === 'bottle' ? 'selected' : ''}" data-cat="bottle">
+                          <div class="st-dropdown-item-content">
+                            <span style="display:flex;align-items:center;">${Icons.package}</span>
+                            <span>Bottle (${bottleRows.length})</span>
+                          </div>
+                          ${priceCategoryFilter === 'bottle' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
+                        </button>
+                      </div>
+                    </div>
                     <!-- Container Custom Dropdown -->
                     <div class="st-dropdown-wrap" id="wrap-ct-filter">
                       <button type="button" class="st-dropdown-trigger ${priceContainerFilter !== 'ALL' ? 'active' : ''}" id="btn-ct-filter-trigger" title="Filter by Container Type">
                         <span style="display:flex;align-items:center;gap:5px;">
-                          <span>📦</span>
+                          <span style="display:flex;align-items:center;">${Icons.package}</span>
                           <span style="max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${priceContainerFilter === 'ALL' ? 'Containers' : priceContainerFilter}</span>
                         </span>
                         <span class="st-chevron" style="width:13px;height:13px;display:flex;align-items:center;">${Icons.chevronDown}</span>
@@ -1096,7 +1126,7 @@ export function renderSettingsScreen(
                         </div>
                         <button type="button" class="st-dropdown-item ${priceContainerFilter === 'ALL' ? 'selected' : ''}" data-ct="ALL">
                           <div class="st-dropdown-item-content">
-                            <span style="font-size:13px;">📦</span>
+                            <span style="display:flex;align-items:center;">${Icons.package}</span>
                             <span>All Containers</span>
                           </div>
                           ${priceContainerFilter === 'ALL' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
@@ -1109,7 +1139,7 @@ export function renderSettingsScreen(
                           return `
                             <button type="button" class="st-dropdown-item ${isSelected ? 'selected' : ''}" data-ct="${ct}">
                               <div class="st-dropdown-item-content">
-                                <span style="font-size:12px;">${isWater ? '💧' : '📦'}</span>
+                                <span style="display:flex;align-items:center;">${isWater ? Icons.droplet : Icons.package}</span>
                                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ct}</span>
                                 <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:${isWater ? 'rgba(13,148,136,0.15)' : 'rgba(217,119,6,0.15)'};color:${isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'};">
                                   ${isWater ? 'Water' : 'Flat'}
@@ -1126,7 +1156,7 @@ export function renderSettingsScreen(
                     <div class="st-dropdown-wrap" id="wrap-water-filter">
                       <button type="button" class="st-dropdown-trigger ${priceWaterFilter !== 'ALL' ? 'active' : ''}" id="btn-water-filter-trigger" title="Filter by Water Type">
                         <span style="display:flex;align-items:center;gap:5px;">
-                          <span>💧</span>
+                          <span style="display:flex;align-items:center;">${Icons.droplet}</span>
                           <span style="max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${priceWaterFilter === 'ALL' ? 'Water' : priceWaterFilter === 'NONE' ? 'Flat' : priceWaterFilter}</span>
                         </span>
                         <span class="st-chevron" style="width:13px;height:13px;display:flex;align-items:center;">${Icons.chevronDown}</span>
@@ -1139,7 +1169,7 @@ export function renderSettingsScreen(
                         </div>
                         <button type="button" class="st-dropdown-item ${priceWaterFilter === 'ALL' ? 'selected' : ''}" data-water="ALL">
                           <div class="st-dropdown-item-content">
-                            <span style="font-size:13px;">💧</span>
+                            <span style="display:flex;align-items:center;">${Icons.droplet}</span>
                             <span>All Water Types</span>
                           </div>
                           ${priceWaterFilter === 'ALL' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
@@ -1165,7 +1195,7 @@ export function renderSettingsScreen(
                         <div style="height:1px;background:var(--clr-border);margin:3px 0;"></div>
                         <button type="button" class="st-dropdown-item ${priceWaterFilter === 'NONE' ? 'selected' : ''}" data-water="NONE">
                           <div class="st-dropdown-item-content">
-                            <span style="font-size:12px;">📦</span>
+                            <span style="display:flex;align-items:center;">${Icons.package}</span>
                             <span>No Water (Flat Bottles)</span>
                           </div>
                           ${priceWaterFilter === 'NONE' ? `<span class="st-dropdown-item-check">${Icons.check}</span>` : ''}
@@ -1179,11 +1209,10 @@ export function renderSettingsScreen(
                       </button>
                     ` : ''}
                   </div>
-                </div>
 
                 <div class="st-search-wrap">
                   <span class="st-search-icon">${Icons.search}</span>
-                  <input type="text" id="st-price-search" class="st-search-input" placeholder="Search prices…" value="${priceSearchFilter}" style="width:125px;" />
+                  <input type="text" id="st-price-search" class="st-search-input" placeholder="Search prices…" value="${priceSearchFilter}" style="width:185px;" />
                   ${priceSearchFilter ? `<button type="button" id="btn-clear-price-search" class="st-search-clear" title="Clear">${Icons.x}</button>` : ''}
                 </div>
               </div>
@@ -1193,7 +1222,7 @@ export function renderSettingsScreen(
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 20px;background:rgba(14,165,233,0.03);border-bottom:1px solid var(--clr-border);position:relative;z-index:10;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;display:flex;align-items:center;gap:5px;">
-                    ${Icons.dollar} Add / Deduct Price:
+                    ${Icons.peso} Add / Deduct Price:
                   </span>
                   <div style="display:inline-flex;align-items:center;gap:4px;">
                     <button type="button" class="st-quick-btn" data-adjust-amount="-10" title="Deduct ₱10 from all visible rows">−₱10</button>
@@ -1212,7 +1241,7 @@ export function renderSettingsScreen(
                     </button>
                   </div>
                 </div>
-                ${isFiltered ? `<button type="button" id="btn-reset-price-filter" class="st-filter-btn" style="font-size:11px;padding:4px 10px;">✕ Clear filter</button>` : ''}
+                ${isFiltered ? `<button type="button" id="btn-reset-price-filter" class="st-filter-btn" style="font-size:11px;padding:4px 10px;display:inline-flex;align-items:center;gap:4px;">${Icons.x} Clear filter</button>` : ''}
               </div>
               ` : ''}
 
@@ -1255,13 +1284,13 @@ export function renderSettingsScreen(
                       if (row.water) {
                         const wUpper = row.water.toUpperCase()
                         if (wUpper === 'ALKALINE') {
-                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--alkaline">💧 ALKALINE</span>`
+                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--alkaline">${Icons.droplet} ALKALINE</span>`
                         } else if (wUpper === 'PURIFIED') {
-                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--purified">💧 PURIFIED</span>`
+                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--purified">${Icons.droplet} PURIFIED</span>`
                         } else if (wUpper === 'MINERAL') {
-                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--mineral">💧 MINERAL</span>`
+                          waterBadgeHtml = `<span class="st-water-badge st-water-badge--mineral">${Icons.droplet} MINERAL</span>`
                         } else {
-                          waterBadgeHtml = `<span class="st-water-badge" style="background:var(--clr-primary-glow);color:var(--clr-primary);border:1px solid rgba(13,148,136,0.3);">💧 ${row.water}</span>`
+                          waterBadgeHtml = `<span class="st-water-badge" style="background:var(--clr-primary-glow);color:var(--clr-primary);border:1px solid rgba(13,148,136,0.3);">${Icons.droplet} ${row.water}</span>`
                         }
                       }
 
@@ -1350,7 +1379,7 @@ export function renderSettingsScreen(
                 <div style="display:flex;flex-direction:column;gap:8px;" id="container-types-list">
                   ${filteredContainers.length === 0 ? `
                     <div style="padding:32px 20px;text-align:center;color:var(--clr-text-muted);">
-                      <div style="font-size:28px;margin-bottom:8px;">📦</div>
+                      <div style="display:flex;justify-content:center;margin-bottom:8px;color:var(--clr-text-dim);">${Icons.package}</div>
                       <div style="font-weight:700;font-size:14px;color:var(--clr-text);margin-bottom:4px;">No containers match</div>
                       <div style="font-size:12px;">Try clearing the search above.</div>
                     </div>
@@ -1371,14 +1400,14 @@ export function renderSettingsScreen(
                             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                               <span style="font-weight:800;font-size:13px;color:var(--clr-text);letter-spacing:0.02em;">${ct.name}</span>
                               ${ct.requiresWaterType
-                                ? `<span class="st-tag-pill" style="background:var(--clr-primary-glow);color:var(--clr-primary);border-color:rgba(13,148,136,0.3);border-radius:20px;">💧 Water</span>`
-                                : `<span class="st-tag-pill" style="background:rgba(217,119,6,0.1);color:var(--clr-deliver);border-color:rgba(217,119,6,0.3);border-radius:20px;">📦 Flat</span>`
+                                ? `<span class="st-tag-pill" style="background:var(--clr-primary-glow);color:var(--clr-primary);border-color:rgba(13,148,136,0.3);border-radius:20px;display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-flex;">${Icons.droplet}</span> Water</span>`
+                                : `<span class="st-tag-pill" style="background:rgba(217,119,6,0.1);color:var(--clr-deliver);border-color:rgba(217,119,6,0.3);border-radius:20px;display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-flex;">${Icons.package}</span> Flat</span>`
                               }
                               ${coverageOk
-                                ? `<span style="font-size:10px;font-weight:700;color:var(--clr-success);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:5px;padding:2px 6px;">✓ ${priceRowCount} prices</span>`
+                                ? `<span style="font-size:10px;font-weight:700;color:var(--clr-success);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:5px;padding:2px 6px;display:inline-flex;align-items:center;gap:3px;">${Icons.check} ${priceRowCount} prices</span>`
                                 : coveragePartial
-                                  ? `<span style="font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:5px;padding:2px 6px;">⚠ ${zeroPriceCount} zero price${zeroPriceCount !== 1 ? 's' : ''}</span>`
-                                  : `<span style="font-size:10px;font-weight:700;color:var(--clr-danger);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:5px;padding:2px 6px;">✗ No prices</span>`
+                                  ? `<span style="font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:5px;padding:2px 6px;display:inline-flex;align-items:center;gap:3px;">${Icons.alertTriangle} ${zeroPriceCount} zero price${zeroPriceCount !== 1 ? 's' : ''}</span>`
+                                  : `<span style="font-size:10px;font-weight:700;color:var(--clr-danger);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:5px;padding:2px 6px;display:inline-flex;align-items:center;gap:3px;">${Icons.x} No prices</span>`
                               }
                             </div>
                             <div style="font-size:11px;color:var(--clr-text-muted);margin-top:3px;">
@@ -1417,16 +1446,16 @@ export function renderSettingsScreen(
                       style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-input-bg);color:var(--clr-text);font-size:13px;text-transform:uppercase;font-weight:700;"
                       autocomplete="off" />
                     <button type="button" id="new-ct-toggle-btn"
-                      style="padding:8px 14px;border-radius:8px;border:1px solid rgba(13,148,136,0.4);background:rgba(13,148,136,0.12);color:var(--clr-primary);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0;"
+                      style="padding:8px 14px;border-radius:8px;border:1px solid rgba(13,148,136,0.4);background:rgba(13,148,136,0.12);color:var(--clr-primary);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0;display:inline-flex;align-items:center;gap:4px;"
                       title="Click to toggle: Water (generates price per water variant) or Flat (single price)">
-                      💧 Water
+                      ${Icons.droplet} Water
                     </button>
                     <input type="checkbox" id="new-ct-req" checked style="display:none;" />
                     <button id="btn-add-ct" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;padding:8px 16px;flex-shrink:0;">
                       ${Icons.plus} Add
                     </button>
                   </div>
-                  <div style="font-size:11px;color:var(--clr-text-dim);">Press Enter ↵ · 💧 Water = separate price per variant · 📦 Flat = single price</div>
+                  <div style="font-size:11px;color:var(--clr-text-dim);">Press Enter ↵ · Water = separate price per variant · Flat = single price</div>
                 </div>
               </div>
             </div>
@@ -1645,7 +1674,7 @@ export function renderSettingsScreen(
                 <!-- Custom Google OAuth Credentials -->
                 <details style="margin-top:14px;background:var(--clr-surface-1);border:1px solid var(--clr-border);border-radius:10px;padding:12px 14px;">
                   <summary style="font-size:12px;color:var(--clr-text-muted);font-weight:600;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;">
-                    ${Icons.settings || '⚙'} Custom Google OAuth Credentials (Optional)
+                    ${Icons.settings} Custom Google OAuth Credentials (Optional)
                   </summary>
                   <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
                     <div>
@@ -2187,21 +2216,33 @@ export function renderSettingsScreen(
       })
     })
 
-    container.querySelectorAll<HTMLButtonElement>('.st-price-cat-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    // All filter dropdowns share one close helper — declare it first
+    const closeAllFilterDropdowns = () => {
+      container.querySelectorAll('.st-dropdown-wrap.open').forEach(w => w.classList.remove('open'))
+    }
+
+    // Category dropdown (All / Gallon / Bottle)
+    const catWrap = q<HTMLElement>('#wrap-cat-filter')
+    q('#btn-cat-filter-trigger')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const isOpen = catWrap?.classList.contains('open')
+      closeAllFilterDropdowns()
+      if (!isOpen) catWrap?.classList.add('open')
+    })
+
+    container.querySelectorAll<HTMLButtonElement>('.st-dropdown-item[data-cat]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation()
         syncPricesFromDOM()
-        priceCategoryFilter = (btn.dataset.cat as any) || 'all'
+        priceCategoryFilter = (item.dataset.cat as any) || 'all'
+        closeAllFilterDropdowns()
         refreshTabContent()
       })
     })
 
-    // Custom Dropdown Toggles for Container and Water filters
+    // Container dropdown
     const ctWrap = q<HTMLElement>('#wrap-ct-filter')
     const waterWrap = q<HTMLElement>('#wrap-water-filter')
-
-    const closeAllFilterDropdowns = () => {
-      container.querySelectorAll('.st-dropdown-wrap.open').forEach(w => w.classList.remove('open'))
-    }
 
     q('#btn-ct-filter-trigger')?.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -2378,7 +2419,7 @@ export function renderSettingsScreen(
 
           if (res.ok && res.data) {
             showToast(
-              `✓ Database synced: ${res.data.containersSynced} containers, ${res.data.waterTypesSynced} water types, ${res.data.pricesSynced} price combinations.`,
+              `Database synced: ${res.data.containersSynced} containers, ${res.data.waterTypesSynced} water types, ${res.data.pricesSynced} price combinations.`,
               'success',
               3500
             )
@@ -2447,7 +2488,9 @@ export function renderSettingsScreen(
 
     const updateCtToggleUI = (isWater: boolean) => {
       if (ctToggleBtn) {
-        ctToggleBtn.innerHTML = isWater ? '💧 Water' : '📦 Flat'
+        ctToggleBtn.innerHTML = isWater
+          ? `<span style="display:inline-flex;align-items:center;gap:4px;">${Icons.droplet} Water</span>`
+          : `<span style="display:inline-flex;align-items:center;gap:4px;">${Icons.package} Flat</span>`
         ctToggleBtn.style.background = isWater ? 'rgba(13,148,136,0.12)' : 'rgba(217,119,6,0.1)'
         ctToggleBtn.style.color = isWater ? 'var(--clr-primary)' : 'var(--clr-deliver)'
         ctToggleBtn.style.borderColor = isWater ? 'rgba(13,148,136,0.4)' : 'rgba(217,119,6,0.4)'
@@ -2537,7 +2580,7 @@ export function renderSettingsScreen(
         cfg.priceTable.push({ container: name, water: '', pickup: 0, deliver: 0, note: '' })
       }
       await persistConfig()
-      showToast(`✓ Container "${name}" saved to database successfully!`, 'success')
+      showToast(`Container "${name}" saved to database successfully!`, 'success')
       render()
     })
 
@@ -2585,7 +2628,7 @@ export function renderSettingsScreen(
         cfg.priceTable.push({ container: ct.name, water: name, pickup: 0, deliver: 0, note: '' })
       })
       await persistConfig()
-      showToast(`✓ Water type "${name}" added and synced to database!`, 'success')
+      showToast(`Water type "${name}" added and synced to database!`, 'success')
       render()
     })
 
@@ -2829,16 +2872,16 @@ export function renderSettingsScreen(
         if (statusEl) {
           if (res.ok) {
             statusEl.style.color = 'var(--clr-success)'
-            statusEl.textContent = '✓ Connected and authenticated successfully!'
+            statusEl.textContent = 'Connected and authenticated successfully!'
           } else {
             statusEl.style.color = 'var(--clr-error)'
-            statusEl.textContent = `✗ Auth failed: ${res.error}`
+            statusEl.textContent = `Auth failed: ${res.error}`
           }
         }
       } catch (err: any) {
         if (statusEl) {
           statusEl.style.color = 'var(--clr-error)'
-          statusEl.textContent = `✗ Error: ${err?.message || String(err)}`
+          statusEl.textContent = `Error: ${err?.message || String(err)}`
         }
       } finally {
         if (btn) btn.disabled = false
