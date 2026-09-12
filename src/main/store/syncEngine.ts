@@ -61,10 +61,10 @@ export function startSyncEngine(): void {
     }
 
     if (nowOnline && (wasOffline || getPendingCount() > 0)) {
+      await drainQueue()
       if (wasOffline) {
         runInitialSync().catch(e => console.warn('[syncEngine] initialSync on reconnect error:', e))
       }
-      await drainQueue()
     }
   }, 15_000)
 

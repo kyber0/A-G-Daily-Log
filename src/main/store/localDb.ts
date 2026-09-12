@@ -256,8 +256,39 @@ export function enqueueWrite(
 export function getPendingQueue(): SyncQueueItem[] {
   const db = getLocalDb()
   return db.prepare(`
-    SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC
+    SELECT * FROM sync_queue WHERE status IN ('pending', 'error') ORDER BY created_at ASC
   `).all() as SyncQueueItem[]
+}
+
+/**
+ * Returns true if there are pending/syncing/error queue items for a given date in the specified table.
+ * Used to avoid overwriting fresh local changes with stale server responses before sync drains.
+ */
+export function hasPendingSyncForDate(tableName: string, date: string): boolean {
+  const db = getLocalDb()
+  const row = db.prepare(`
+    SELECT 1 FROM sync_queue
+    WHERE table_name = ?
+      AND status IN ('pending', 'syncing', 'error')
+      AND (payload LIKE ? OR payload LIKE ?)
+    LIMIT 1
+  `).get(tableName, `%"date":"${date}"%`, `%"_deleteByDate":"${date}"%`)
+  return !!row
+}
+
+/**
+ * Returns true if there are pending/syncing/error queue items for a given month (YYYY-MM) in the specified table.
+ */
+export function hasPendingSyncForMonth(tableName: string, monthStr: string): boolean {
+  const db = getLocalDb()
+  const row = db.prepare(`
+    SELECT 1 FROM sync_queue
+    WHERE table_name = ?
+      AND status IN ('pending', 'syncing', 'error')
+      AND payload LIKE ?
+    LIMIT 1
+  `).get(tableName, `%"date":"${monthStr}-%`)
+  return !!row
 }
 
 export function markQueueItem(id: string, status: SyncQueueItem['status'], errorMsg?: string): void {

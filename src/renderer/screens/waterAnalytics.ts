@@ -1,328 +1,514 @@
 import { Icons } from '../components/icons'
 import Chart from 'chart.js/auto'
+import type { HistoryDay } from '../../shared/types'
 
 let chartDaily: Chart | null = null
-let chartMonthly: Chart | null = null
 let chartProfit: Chart | null = null
 
-export async function renderWaterAnalyticsScreen(container: HTMLElement): Promise<void> {
-  // Inject styles once
-  if (!document.getElementById('analytics-styles')) {
-    const style = document.createElement('style')
-    style.id = 'analytics-styles'
-    style.innerHTML = `
-      @keyframes slideUpFade {
-        0% { opacity: 0; transform: translateY(15px); }
-        100% { opacity: 1; transform: translateY(0); }
-      }
-      .animate-slide-up { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
-      .stagger-1 { animation-delay: 0.05s; }
-      .stagger-2 { animation-delay: 0.1s; }
-      .stagger-3 { animation-delay: 0.15s; }
-      .stagger-4 { animation-delay: 0.2s; }
-      .chart-container { transition: box-shadow 0.3s ease; }
-      .chart-container:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
-      [data-theme="dark"] .chart-container:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
-      .period-btn { padding: 6px 14px; border-radius: 10px; border: 1px solid var(--clr-border); background: transparent; color: var(--clr-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: var(--font); }
-      .period-btn:hover { background: var(--clr-surface-2); color: var(--clr-text); }
-      .period-btn.active { background: var(--clr-primary); color: #fff; border-color: var(--clr-primary); }
-      .period-select { padding: 6px 12px; border-radius: 10px; border: 1px solid var(--clr-border); background: var(--clr-surface); color: var(--clr-text); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); }
-      .period-select:focus { outline: none; border-color: var(--clr-primary); }
-      .expenses-table th { font-weight: 600; color: var(--clr-text-muted); padding: 12px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--clr-border); }
-      .expenses-table td { padding: 14px 16px; border-bottom: 1px solid var(--clr-border); color: var(--clr-text); font-size: 13px; }
-      .expenses-table tr:last-child td { border-bottom: none; }
-    `
-    document.head.appendChild(style)
-  }
+function fmtCurrency(n: number | undefined | null): string {
+  const val = Number(n) || 0
+  return '₱' + val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
+function fmtNumber(n: number | undefined | null): string {
+  const val = Number(n) || 0
+  return val.toLocaleString('en-PH')
+}
+
+function fmtCompact(n: number | undefined | null): string {
+  const val = Number(n) || 0
+  if (Math.abs(val) >= 1_000_000) return '₱' + (val / 1_000_000).toFixed(2) + 'M'
+  if (Math.abs(val) >= 1_000) return '₱' + (val / 1_000).toFixed(1) + 'K'
+  return fmtCurrency(val)
+}
+
+function sectionHeader(title: string, subtitle: string, tag?: string): string {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--clr-text-muted);">${title}</div>
+        <div style="font-size:11px;color:var(--clr-text-dim);margin-top:1px;">${subtitle}</div>
+      </div>
+      ${tag ? `<span style="font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--clr-text-muted);background:var(--clr-surface-2);border:1px solid var(--clr-border);padding:2px 8px;border-radius:4px;">${tag}</span>` : ''}
+    </div>
+  `
+}
+
+function chartCard(title: string, subtitle: string, canvasId: string, height = 260, headerRightHtml = ''): string {
+  return `
+    <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--clr-text);">${title}</div>
+          <div style="font-size:11px;color:var(--clr-text-muted);margin-top:2px;">${subtitle}</div>
+        </div>
+        ${headerRightHtml}
+      </div>
+      <div style="height:${height}px;position:relative;width:100%;">
+        <canvas id="${canvasId}"></canvas>
+      </div>
+    </div>
+  `
+}
+
+export async function renderWaterAnalyticsScreen(container: HTMLElement): Promise<void> {
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth() + 1
 
   container.innerHTML = `
-    <div class="screen-header animate-slide-up" style="padding: 24px 32px 20px 32px; display: flex; align-items: center; justify-content: space-between;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="color: var(--clr-primary); background: var(--clr-primary-glow); padding: 8px; border-radius: 12px; display: inline-flex;">
-          ${Icons.pieChart}
-        </span>
-        <div>
-          <h1 style="background: linear-gradient(to right, var(--clr-primary), var(--clr-pickup)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.03em;">Analytics Dashboard</h1>
-          <p style="color: var(--clr-text-muted); margin: 2px 0 0 0; font-size: 13px;">Real-time insights into your business performance</p>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-        <select id="sel-year" class="period-select"></select>
-        <select id="sel-month" class="period-select">
-          <option value="0">All Months</option>
-          <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-          <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-          <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-          <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-        </select>
-      </div>
-    </div>
-    <div class="analytics-container animate-slide-up stagger-1" style="padding: 24px 32px 32px 32px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; flex: 1;">
-      
-      <!-- All Time Banner -->
-      <div id="alltime-banner" class="glass-panel" style="padding: 20px 28px; display: flex; align-items: center; justify-content: space-between; border-radius: 20px; background: linear-gradient(135deg, var(--clr-primary-glow), transparent);">
-        <div style="display: flex; align-items: center; gap: 14px;">
-          <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--clr-primary-glow); display: flex; align-items: center; justify-content: center; color: var(--clr-primary);">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+    <div style="display:flex;flex-direction:column;height:100%;overflow-y:auto;" class="custom-scroll">
+      <!-- Top Control Bar -->
+      <div style="padding:14px 28px;background:var(--clr-surface);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:sticky;top:0;z-index:10;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:8px;background:var(--clr-surface-2);border:1px solid var(--clr-border);display:flex;align-items:center;justify-content:center;color:var(--clr-primary);">
+            ${Icons.droplets || Icons.pieChart}
           </div>
           <div>
-            <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--clr-text-muted);">All-Time Total Revenue</div>
-            <div id="alltime-value" style="font-size: 32px; font-weight: 800; color: var(--clr-primary); letter-spacing: -0.03em;">Loading...</div>
+            <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--clr-text);letter-spacing:-0.01em;">Water Refills Analytics</h2>
+            <p style="margin:1px 0 0;font-size:11px;color:var(--clr-text-muted);">Refill station production, sales &amp; operational expenses</p>
           </div>
         </div>
-        <div style="text-align: right;">
-          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--clr-text-muted);">Total Days Recorded</div>
-          <div id="alltime-days" style="font-size: 28px; font-weight: 800; color: var(--clr-text);">—</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select id="water-sel-year" style="padding:6px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface);color:var(--clr-text);font-size:13px;font-weight:600;cursor:pointer;"></select>
+          <select id="water-sel-month" style="padding:6px 12px;border-radius:8px;border:1px solid var(--clr-border);background:var(--clr-surface);color:var(--clr-text);font-size:13px;font-weight:600;cursor:pointer;">
+            <option value="0">All Months</option>
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <button class="btn btn-ghost btn-icon" id="water-refresh-btn" title="Refresh Analytics" style="padding:7px;border:1px solid var(--clr-border);border-radius:8px;">${Icons.refreshCw}</button>
         </div>
       </div>
 
-      <!-- KPI Cards -->
-      <div id="analytics-cards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
-        <div style="padding: 20px; text-align: center; color: var(--clr-text-muted);">Loading...</div>
+      <!-- Dashboard Main Body -->
+      <div id="water-dashboard-content" style="padding:22px 28px 40px;display:flex;flex-direction:column;gap:20px;">
+        <div style="display:flex;justify-content:center;padding:60px;"><div class="spinner"></div></div>
+      </div>
+    </div>
+  `
+
+  const yearSel = document.getElementById('water-sel-year') as HTMLSelectElement
+  const monthSel = document.getElementById('water-sel-month') as HTMLSelectElement
+  const refreshBtn = document.getElementById('water-refresh-btn')
+  const contentArea = document.getElementById('water-dashboard-content')!
+
+  let allDays: HistoryDay[] = []
+
+  async function fetchHistory() {
+    contentArea.innerHTML = `<div style="display:flex;justify-content:center;padding:60px;"><div class="spinner"></div></div>`
+    const res = await window.api.listHistory()
+    if (!res.ok) {
+      contentArea.innerHTML = `<div style="padding:40px;text-align:center;color:var(--clr-error);">Failed to load water history: ${res.error}</div>`
+      return
+    }
+    allDays = res.data || []
+
+    const availableYears = [...new Set(allDays.map(d => parseInt(d.date.split('-')[0])))]
+      .filter(y => !isNaN(y))
+      .sort((a, b) => b - a)
+
+    if (!availableYears.includes(currentYear)) availableYears.unshift(currentYear)
+
+    yearSel.innerHTML = `<option value="0">All Time</option>` + availableYears.map(y => `<option value="${y}">${y}</option>`).join('')
+    yearSel.value = String(currentYear)
+    monthSel.value = String(currentMonth)
+
+    updateView()
+  }
+
+  function updateView() {
+    const y = parseInt(yearSel.value, 10)
+    monthSel.style.display = y === 0 ? 'none' : 'inline-block'
+    const m = y === 0 ? 0 : parseInt(monthSel.value, 10)
+    renderWaterDashboard(contentArea, allDays, y, m)
+  }
+
+  yearSel.addEventListener('change', updateView)
+  monthSel.addEventListener('change', updateView)
+  refreshBtn?.addEventListener('click', fetchHistory)
+
+  await fetchHistory()
+}
+
+function renderWaterDashboard(container: HTMLElement, allDays: HistoryDay[], selYear: number, selMonth: number): void {
+  // Filter days based on selection
+  const periodDays = allDays.filter(d => {
+    if (selYear === 0) return true
+    const [yStr, mStr] = d.date.split('-')
+    const y = parseInt(yStr, 10)
+    const m = parseInt(mStr, 10)
+    if (selMonth === 0) return y === selYear
+    return y === selYear && m === selMonth
+  })
+
+  // Aggregate financials & operational counts
+  const totalRevenue = periodDays.reduce((s, d) => s + (Number(d.totalAmount) || 0), 0)
+  const totalExpenses = periodDays.reduce((s, d) => s + (Number(d.totalExpenses) || 0), 0)
+  const netProfit = totalRevenue - totalExpenses
+  const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
+  const activeDays = periodDays.length
+  const avgDailyRevenue = activeDays > 0 ? totalRevenue / activeDays : 0
+  const avgDailyExpense = activeDays > 0 ? totalExpenses / activeDays : 0
+  const totalEntries = periodDays.reduce((s, d) => s + (Number(d.rowCount) || 0), 0)
+
+  const expenseRatio = totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0
+  const marginColor = profitMargin >= 50 ? '#10b981' : profitMargin >= 25 ? '#f59e0b' : '#ef4444'
+  const profitColor = netProfit >= 0 ? '#10b981' : '#ef4444'
+
+  // Determine period label
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  let periodLabel = 'All Time'
+  if (selYear > 0) {
+    if (selMonth > 0) {
+      periodLabel = `${monthNames[selMonth - 1]} ${selYear}`
+    } else {
+      periodLabel = `${selYear} (Full Year)`
+    }
+  }
+
+  // Flatten expenses
+  const expenseRows: { date: string; desc: string; amount: number; remarks: string }[] = []
+  periodDays.forEach(d => {
+    if (d.expenses && Array.isArray(d.expenses)) {
+      d.expenses.forEach(e => {
+        expenseRows.push({
+          date: d.date,
+          desc: e.desc || 'General Expense',
+          amount: Number(e.amount) || 0,
+          remarks: e.remarks || ''
+        })
+      })
+    }
+  })
+  expenseRows.sort((a, b) => b.date.localeCompare(a.date))
+
+  container.innerHTML = `
+    <!-- ── Filter Period Indicator ────────────────────────────────────────── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--clr-text-muted);">Reporting Window:</span>
+        <span style="font-size:12.5px;font-weight:700;color:var(--clr-text);">${periodLabel}</span>
+      </div>
+      <div style="font-size:11px;color:var(--clr-text-dim);">
+        ${activeDays} Active Days Logged &nbsp;|&nbsp; ${fmtNumber(totalEntries)} Sales Entries
+      </div>
+    </div>
+
+    <!-- ── LEVEL 1: FINANCIAL PERFORMANCE (WATER P&L) ─────────────────────── -->
+    <div>
+      ${sectionHeader('Level 1: Financial Performance (Water P&L)', 'Top-line refill sales and bottom-line operating earnings', 'Core P&L')}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        
+        <!-- Card 1: Water Gross Revenue -->
+        <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-top:3px solid #0284c7;border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-muted);">Water Refill Revenue</div>
+              <div style="font-size:28px;font-weight:800;color:var(--clr-text);letter-spacing:-0.03em;margin-top:4px;line-height:1.1;">
+                ${fmtCurrency(totalRevenue)}
+              </div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:#0284c7;background:rgba(2,132,199,0.08);border:1px solid rgba(2,132,199,0.2);padding:3px 8px;border-radius:6px;white-space:nowrap;">
+              Inflow
+            </span>
+          </div>
+
+          <!-- Inflow Performance Context -->
+          <div style="background:var(--clr-surface-2);border:1px solid var(--clr-border);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:10.5px;color:var(--clr-text-muted);text-transform:uppercase;font-weight:600;">Average Daily Revenue</div>
+              <div style="font-size:13px;font-weight:700;color:var(--clr-text);margin-top:2px;">${fmtCurrency(avgDailyRevenue)} / day</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10.5px;color:var(--clr-text-muted);text-transform:uppercase;font-weight:600;">Recorded Pace</div>
+              <div style="font-size:13px;font-weight:700;color:#0284c7;margin-top:2px;">${activeDays} trading days</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Net Operating Income -->
+        <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-top:3px solid ${profitColor};border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-muted);">Net Water Operating Income</div>
+              <div style="font-size:28px;font-weight:800;color:${profitColor};letter-spacing:-0.03em;margin-top:4px;line-height:1.1;">
+                ${fmtCurrency(netProfit)}
+              </div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${marginColor};background:color-mix(in srgb, ${marginColor} 10%, transparent);border:1px solid color-mix(in srgb, ${marginColor} 25%, transparent);padding:3px 8px;border-radius:6px;white-space:nowrap;">
+              ${profitMargin.toFixed(1)}% Margin
+            </span>
+          </div>
+
+          <!-- Expense Burn Breakdown -->
+          <div style="background:var(--clr-surface-2);border:1px solid var(--clr-border);border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--clr-text-muted);">
+              <span>Expense Burn</span>
+              <span>Deductions: ${expenseRatio.toFixed(1)}%</span>
+            </div>
+            <div style="height:6px;background:var(--clr-surface);border-radius:4px;overflow:hidden;display:flex;">
+              <div style="width:${Math.min(expenseRatio, 100)}%;background:#ef4444;" title="Expenses: ${expenseRatio.toFixed(1)}%"></div>
+              <div style="width:${Math.max(100 - expenseRatio, 0)}%;background:#10b981;" title="Retained: ${(100 - expenseRatio).toFixed(1)}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:8px;height:8px;border-radius:2px;background:#ef4444;"></span>
+                <span style="color:var(--clr-text-muted);">Daily Expenses:</span>
+                <strong style="color:#ef4444;">-${fmtCurrency(totalExpenses)}</strong>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:8px;height:8px;border-radius:2px;background:#10b981;"></span>
+                <span style="color:var(--clr-text-muted);">Retained Net:</span>
+                <strong style="color:#10b981;">${fmtCurrency(netProfit)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── LEVEL 2: OPERATIONAL EFFICIENCY & PACE ─────────────────────────── -->
+    <div>
+      ${sectionHeader('Level 2: Operating Efficiency & Cadence', 'Trading consistency and cost control metrics', 'Efficiency')}
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+        
+        <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-left:3px solid #2563eb;border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-muted);">Active Trading Days</div>
+          <div style="font-size:22px;font-weight:800;color:var(--clr-text);">${activeDays} <span style="font-size:12px;color:var(--clr-text-muted);font-weight:600;">days</span></div>
+          <div style="font-size:11px;color:var(--clr-text-muted);">Days with recorded sales transactions</div>
+        </div>
+
+        <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-left:3px solid #0d9488;border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-muted);">Daily Sales Velocity</div>
+          <div style="font-size:22px;font-weight:800;color:var(--clr-text);">${fmtCurrency(avgDailyRevenue)}</div>
+          <div style="font-size:11px;color:var(--clr-text-muted);">Average refill income per active day</div>
+        </div>
+
+        <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-left:3px solid #ef4444;border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-muted);">Daily Operational Burn</div>
+          <div style="font-size:22px;font-weight:800;color:#ef4444;">${fmtCurrency(avgDailyExpense)}</div>
+          <div style="font-size:11px;color:var(--clr-text-muted);">Average daily operational expenses</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── CHARTS: TRAJECTORY & REVENUE VS EXPENSES ────────────────────────── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      
+      <!-- Revenue Trajectory Chart -->
+      <div>
+        ${sectionHeader('Revenue Trajectory', 'Timeline progression across the period')}
+        ${chartCard('Revenue Progression', 'Daily or monthly water refill earnings', 'chart-water-daily', 260)}
       </div>
 
-      <!-- Charts Row 1 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 340px;">
-        <div class="glass-panel chart-container" style="padding: 24px; display: flex; flex-direction: column; border-radius: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <h3 id="chart-daily-title" style="font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--clr-text-muted);">Daily Revenue</h3>
-            <span style="color: var(--clr-primary); font-size: 12px; background: var(--clr-primary-glow); padding: 4px 10px; border-radius: 12px; font-weight: 600;">Trend</span>
-          </div>
-          <div style="flex: 1; position: relative;"><canvas id="chart-daily"></canvas></div>
-        </div>
-        <div class="glass-panel chart-container" style="padding: 24px; display: flex; flex-direction: column; border-radius: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <h3 id="chart-profit-title" style="font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--clr-text-muted);">Revenue vs Expenses</h3>
-            <span style="color: #10b981; font-size: 12px; background: rgba(16, 185, 129, 0.15); padding: 4px 10px; border-radius: 12px; font-weight: 600;">Profitability</span>
-          </div>
-          <div style="flex: 1; position: relative;"><canvas id="chart-profit"></canvas></div>
-        </div>
+      <!-- Revenue vs Expenses Grouped Bar -->
+      <div>
+        ${sectionHeader('Income vs Outflow', 'Operating profitability comparison')}
+        ${chartCard(
+          'Revenue vs Operating Expenses',
+          'Comparison of earnings against daily operating costs',
+          'chart-water-profit',
+          260,
+          `
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--clr-text-muted);"><span style="width:8px;height:8px;border-radius:2px;background:#0284c7;"></span>Revenue</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--clr-text-muted);"><span style="width:8px;height:8px;border-radius:2px;background:#ef4444;"></span>Expenses</span>
+            </div>
+          `
+        )}
       </div>
 
-      <!-- Expense List -->
-      <div class="glass-panel" style="border-radius: 20px; display: flex; flex-direction: column; overflow: hidden;">
-        <div style="padding: 20px 24px; border-bottom: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="color: #ef4444;">${Icons.shoppingCart || ''}</span>
-            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--clr-text);">Expense Breakdown</h3>
-          </div>
-          <div id="expense-total-badge" style="font-size: 13px; font-weight: 700; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 4px 12px; border-radius: 12px;">₱0.00</div>
-        </div>
-        <div style="overflow-x: auto;">
-          <table class="expenses-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+    </div>
+
+    <!-- ── EXPENSES LEDGER TABLE ──────────────────────────────────────────── -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        ${sectionHeader('Operational Expenses Ledger', 'Detailed log of operational costs incurred in this period', 'Cost Ledger')}
+        <span style="font-size:12px;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);padding:3px 10px;border-radius:6px;">
+          Total: ${fmtCurrency(totalExpenses)}
+        </span>
+      </div>
+      <div style="background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;overflow:hidden;">
+        <div style="max-height:300px;overflow-y:auto;" class="custom-scroll">
+          <table style="width:100%;border-collapse:collapse;text-align:left;font-size:12.5px;">
             <thead>
-              <tr>
-                <th style="width: 120px;">Date</th>
-                <th>Description</th>
-                <th>Remarks</th>
-                <th style="text-align: right;">Amount</th>
+              <tr style="background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);">
+                <th style="padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);letter-spacing:0.05em;width:120px;">Date</th>
+                <th style="padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);letter-spacing:0.05em;">Description</th>
+                <th style="padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);letter-spacing:0.05em;">Remarks</th>
+                <th style="padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--clr-text-muted);letter-spacing:0.05em;text-align:right;width:130px;">Amount</th>
               </tr>
             </thead>
-            <tbody id="expense-tbody">
-              <tr><td colspan="4" style="text-align: center; color: var(--clr-text-muted);">Loading...</td></tr>
+            <tbody>
+              ${expenseRows.length === 0 ? `
+                <tr><td colspan="4" style="text-align:center;color:var(--clr-text-muted);padding:36px;">No expenses recorded for this period.</td></tr>
+              ` : expenseRows.map(e => `
+                <tr style="border-bottom:1px solid var(--clr-border);">
+                  <td style="padding:10px 16px;font-family:monospace;color:var(--clr-text-muted);">${e.date}</td>
+                  <td style="padding:10px 16px;font-weight:600;color:var(--clr-text);">${e.desc}</td>
+                  <td style="padding:10px 16px;color:var(--clr-text-muted);">${e.remarks || '—'}</td>
+                  <td style="padding:10px 16px;text-align:right;font-weight:700;color:#ef4444;font-family:monospace;">-${fmtCurrency(e.amount)}</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
         </div>
       </div>
-      
     </div>
   `
 
-  // Fetch all history once
-  const result = await window.api.listHistory()
-  if (!result.ok) {
-    document.getElementById('analytics-cards')!.innerHTML = `<div style="color:var(--clr-error)">Error loading data: ${result.error}</div>`
-    return
-  }
+  // ─── Destroy and rebuild charts ──────────────────────────────────────────
+  if (chartDaily) { chartDaily.destroy(); chartDaily = null }
+  if (chartProfit) { chartProfit.destroy(); chartProfit = null }
 
-  const allDays = result.data
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+  const tickColor = isDark ? '#64748b' : '#94a3b8'
 
-  // Populate year selector from available data + All Time
-  const availableYears = [...new Set(allDays.map(d => parseInt(d.date.split('-')[0])))]
-    .sort((a, b) => b - a)
-  if (!availableYears.includes(currentYear)) availableYears.unshift(currentYear)
+  const canvasDaily = document.getElementById('chart-water-daily') as HTMLCanvasElement
+  const canvasProfit = document.getElementById('chart-water-profit') as HTMLCanvasElement
 
-  const yearSel = document.getElementById('sel-year') as HTMLSelectElement
-  yearSel.innerHTML = `<option value="0">All Time (All Years)</option>` + availableYears.map(y => `<option value="${y}">${y}</option>`).join('')
-  yearSel.value = String(currentYear)
+  let labels: string[] = []
+  let revData: number[] = []
+  let expData: number[] = []
 
-  const monthSel = document.getElementById('sel-month') as HTMLSelectElement
-  monthSel.value = String(currentMonth)
-
-  // All-time stats
-  const allTimeRevenue = allDays.reduce((s, d) => s + (d.totalAmount || 0), 0)
-  const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  document.getElementById('alltime-value')!.textContent = fmt(allTimeRevenue)
-  document.getElementById('alltime-days')!.textContent = String(allDays.length)
-
-  // Initial render
-  updateDashboard(allDays, currentYear, currentMonth)
-
-  // Auto-update on dropdown change
-  const onChange = () => {
-    const y = parseInt(yearSel.value)
-    if (y === 0) {
-      monthSel.style.display = 'none'
-    } else {
-      monthSel.style.display = 'block'
-    }
-    const m = y === 0 ? 0 : parseInt(monthSel.value)
-    updateDashboard(allDays, y, m)
-  }
-  yearSel.addEventListener('change', onChange)
-  monthSel.addEventListener('change', onChange)
-}
-
-function updateDashboard(allDays: import('../../shared/types').HistoryDay[], selYear: number, selMonth: number): void {
-  const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  // Filter to selected period (selYear 0 = all time)
-  const periodDays = allDays.filter(d => {
-    if (selYear === 0) return true
-    const [y, m] = d.date.split('-').map(Number)
-    if (selMonth === 0) return y === selYear          // whole year
-    return y === selYear && m === selMonth             // specific month
-  })
-
-  const revenue     = periodDays.reduce((s, d) => s + (d.totalAmount || 0), 0)
-  const expenses    = periodDays.reduce((s, d) => s + (d.totalExpenses || 0), 0)
-  const profit      = revenue - expenses
-  const profitMargin= revenue > 0 ? (profit / revenue) * 100 : 0
-
-  const primaryColor  = '#0ea5e9'
-  const successColor  = '#10b981'
-  const expenseColor  = '#ef4444'
-  const neutralColor  = '#64748b'
-
-  // Revenue cards
-  document.getElementById('analytics-cards')!.innerHTML = `
-    ${buildCard('Total Revenue', fmt(revenue), Icons.banknote, primaryColor, 1, 'Gross earnings')}
-    ${buildCard('Total Expenses', fmt(expenses), Icons.shoppingCart, expenseColor, 2, 'Operational costs')}
-    ${buildCard('Net Profit', fmt(profit), Icons.trendingUp, successColor, 3, 'Revenue minus expenses')}
-    ${buildCard('Profit Margin', profitMargin.toFixed(1) + '%', Icons.pieChart, neutralColor, 4, 'Efficiency ratio')}
-  `
-
-  // Expense List
-  const expenseRows: any[] = []
-  periodDays.forEach(d => {
-    if (d.expenses && d.expenses.length > 0) {
-      d.expenses.forEach(e => expenseRows.push({ ...e, date: d.date }))
-    }
-  })
-  expenseRows.sort((a, b) => b.date.localeCompare(a.date)) // Newest first
-  
-  document.getElementById('expense-total-badge')!.textContent = fmt(expenses)
-  const tbody = document.getElementById('expense-tbody')!
-  
-  if (expenseRows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--clr-text-muted); padding: 32px;">No expenses logged for this period.</td></tr>`
-  } else {
-    tbody.innerHTML = expenseRows.map(e => `
-      <tr>
-        <td style="font-family: monospace; color: var(--clr-text-muted);">${e.date}</td>
-        <td style="font-weight: 600;">${e.desc || '—'}</td>
-        <td style="color: var(--clr-text-muted);">${e.remarks || '—'}</td>
-        <td style="text-align: right; font-weight: 700; color: #ef4444; font-family: monospace;">-₱${e.amount.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-      </tr>
-    `).join('')
-  }
-
-  // Chart labels & data
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-  if (selMonth === 0) {
-    // Whole year
-    const revData = Array(12).fill(0)
-    const expData = Array(12).fill(0)
-    periodDays.forEach(d => {
-      const m = parseInt(d.date.split('-')[1]) - 1
-      revData[m] += d.totalAmount || 0
-      expData[m] += d.totalExpenses || 0
+  if (selYear === 0) {
+    // All time: Group by year
+    const yearlyMap = new Map<string, { rev: number; exp: number }>()
+    allDays.forEach(d => {
+      const y = d.date.split('-')[0]
+      const cur = yearlyMap.get(y) || { rev: 0, exp: 0 }
+      cur.rev += Number(d.totalAmount) || 0
+      cur.exp += Number(d.totalExpenses) || 0
+      yearlyMap.set(y, cur)
     })
-    
-    document.getElementById('chart-daily-title')!.textContent = `Monthly Revenue — ${selYear}`
-    renderLineChart('chart-daily', monthNames, revData, primaryColor, '₱')
-    
-    document.getElementById('chart-profit-title')!.textContent = `Revenue vs Expenses — ${selYear}`
-    renderBarChartGrouped('chart-profit', monthNames, revData, expData, primaryColor, expenseColor, '₱')
+    const sortedYears = [...yearlyMap.keys()].sort()
+    labels = sortedYears
+    revData = sortedYears.map(y => yearlyMap.get(y)!.rev)
+    expData = sortedYears.map(y => yearlyMap.get(y)!.exp)
+  } else if (selMonth === 0) {
+    // Full year: Group by 12 months
+    const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    labels = shortMonths
+    revData = Array(12).fill(0)
+    expData = Array(12).fill(0)
+    periodDays.forEach(d => {
+      const mIdx = parseInt(d.date.split('-')[1], 10) - 1
+      if (mIdx >= 0 && mIdx < 12) {
+        revData[mIdx] += Number(d.totalAmount) || 0
+        expData[mIdx] += Number(d.totalExpenses) || 0
+      }
+    })
   } else {
-    // Specific month
+    // Specific month: Daily
     const daysInMonth = new Date(selYear, selMonth, 0).getDate()
-    const dailyLabels = Array.from({length: daysInMonth}, (_, i) => String(i + 1))
-    
-    const revData = Array(daysInMonth).fill(0)
-    const expData = Array(daysInMonth).fill(0)
-    
+    labels = Array.from({ length: daysInMonth }, (_, i) => String(i + 1))
+    revData = Array(daysInMonth).fill(0)
+    expData = Array(daysInMonth).fill(0)
     periodDays.forEach(d => {
-      const day = parseInt(d.date.split('-')[2]) - 1
-      revData[day] += d.totalAmount || 0
-      expData[day] += d.totalExpenses || 0
+      const day = parseInt(d.date.split('-')[2], 10) - 1
+      if (day >= 0 && day < daysInMonth) {
+        revData[day] += Number(d.totalAmount) || 0
+        expData[day] += Number(d.totalExpenses) || 0
+      }
     })
-    
-    document.getElementById('chart-daily-title')!.textContent = `Daily Revenue — ${new Date(selYear, selMonth - 1, 1).toLocaleDateString('en-PH', { month: 'long' })} ${selYear}`
-    renderLineChart('chart-daily', dailyLabels, revData, primaryColor, '₱')
-    
-    document.getElementById('chart-profit-title')!.textContent = `Daily Rev vs Exp — ${new Date(selYear, selMonth - 1, 1).toLocaleDateString('en-PH', { month: 'long' })} ${selYear}`
-    renderBarChartGrouped('chart-profit', dailyLabels, revData, expData, primaryColor, expenseColor, '₱')
   }
-}
 
-function renderLineChart(id: string, labels: string[], data: number[], color: string, prefix: string) {
-  const canvas = document.getElementById(id) as HTMLCanvasElement
-  if (!canvas) return
-  const existing = Chart.getChart(canvas); if (existing) existing.destroy()
-  const ctx = canvas.getContext('2d')!
-  const gradient = ctx.createLinearGradient(0, 0, 0, 300)
-  gradient.addColorStop(0, color + '66'); gradient.addColorStop(1, color + '00')
-  const textColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#000000'
-  new Chart(canvas, {
-    type: 'line',
-    data: { labels, datasets: [{ data, borderColor: color, backgroundColor: gradient, borderWidth: 3, fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: color, pointBorderWidth: 2 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', titleColor: '#e2e8f0', bodyColor: '#fff', padding: 12, cornerRadius: 8, displayColors: false, callbacks: { label: (ctx) => prefix + (ctx.parsed.y ?? 0).toLocaleString('en-PH') } } },
-      scales: { y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' }, border: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: textColor } }, x: { grid: { display: false }, border: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: textColor, maxTicksLimit: 15 } } }
-    }
-  })
-}
+  // 1. Revenue Trajectory Line Chart
+  if (canvasDaily) {
+    chartDaily = new Chart(canvasDaily, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Water Revenue',
+          data: revData,
+          borderColor: '#0284c7',
+          backgroundColor: 'rgba(2, 132, 199, 0.08)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 2.2,
+          pointRadius: labels.length > 31 ? 0 : 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` Revenue: ${fmtCurrency(Number(ctx.raw) || 0)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: tickColor, font: { size: 11 }, maxTicksLimit: 14 }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 11 }, callback: (v) => fmtCompact(Number(v) || 0) }
+          }
+        }
+      }
+    })
+  }
 
-function renderBarChartGrouped(id: string, labels: string[], data1: number[], data2: number[], color1: string, color2: string, prefix: string) {
-  const canvas = document.getElementById(id) as HTMLCanvasElement
-  if (!canvas) return
-  const existing = Chart.getChart(canvas); if (existing) existing.destroy()
-  const textColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#000000'
-  new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Revenue', data: data1, backgroundColor: color1, borderRadius: 4, barPercentage: 0.8, categoryPercentage: 0.8 },
-        { label: 'Expenses', data: data2, backgroundColor: color2, borderRadius: 4, barPercentage: 0.8, categoryPercentage: 0.8 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: true, position: 'bottom', labels: { color: textColor, usePointStyle: true, boxWidth: 8, font: { family: 'Inter', size: 11 } } }, tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', titleColor: '#e2e8f0', bodyColor: '#fff', padding: 12, cornerRadius: 8, callbacks: { label: (ctx) => ctx.dataset.label + ': ' + prefix + (ctx.parsed.y ?? 0).toLocaleString('en-PH') } } },
-      scales: { y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' }, border: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: textColor } }, x: { grid: { display: false }, border: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: textColor, maxTicksLimit: 15 } } }
-    }
-  })
-}
-
-function buildCard(title: string, value: string, icon: string, color: string, delayIndex: number, subtitle: string) {
-  return `
-    <div class="glass-panel animate-slide-up" style="animation-delay: ${0.05 * delayIndex}s; padding: 20px 24px; display: flex; align-items: center; gap: 16px; border-radius: 18px; transition: all 0.3s ease; cursor: default;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-md)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='';">
-      <div style="background: ${color}18; color: ${color}; width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-        <div style="transform: scale(1.25);">${icon}</div>
-      </div>
-      <div style="min-width: 0;">
-        <div style="font-size: 11px; color: var(--clr-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;">${title}</div>
-        <div style="font-size: 22px; font-weight: 800; color: var(--clr-text); letter-spacing: -0.02em; line-height: 1.2;">${value}</div>
-        <div style="font-size: 11px; color: var(--clr-text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${subtitle}</div>
-      </div>
-    </div>
-  `
+  // 2. Profit / Expense Bar Chart
+  if (canvasProfit) {
+    chartProfit = new Chart(canvasProfit, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Revenue',
+            data: revData,
+            backgroundColor: '#0284c7',
+            borderRadius: 4,
+            barPercentage: 0.75,
+            categoryPercentage: 0.8
+          },
+          {
+            label: 'Expenses',
+            data: expData,
+            backgroundColor: '#ef4444',
+            borderRadius: 4,
+            barPercentage: 0.75,
+            categoryPercentage: 0.8
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${fmtCurrency(Number(ctx.raw) || 0)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: tickColor, font: { size: 11 }, maxTicksLimit: 14 }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 11 }, callback: (v) => fmtCompact(Number(v) || 0) }
+          }
+        }
+      }
+    })
+  }
 }

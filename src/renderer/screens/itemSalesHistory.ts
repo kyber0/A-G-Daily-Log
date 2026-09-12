@@ -261,14 +261,14 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
         font-variant-numeric: tabular-nums;
       }
       .ish-kpi--net {
-        background: linear-gradient(135deg, var(--clr-primary), var(--clr-primary-dim, #0284c7));
-        border-color: transparent;
+        background: var(--clr-surface);
+        border-color: var(--clr-primary);
       }
       .ish-kpi--net .ish-kpi-label {
-        color: rgba(255, 255, 255, 0.8);
+        color: var(--clr-text-muted);
       }
       .ish-kpi--net .ish-kpi-value {
-        color: #ffffff;
+        color: var(--clr-primary);
       }
       .ish-kpi--discount .ish-kpi-value {
         color: var(--clr-error, #ef4444);

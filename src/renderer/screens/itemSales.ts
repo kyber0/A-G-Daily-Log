@@ -349,7 +349,7 @@ export function renderItemSalesScreen(
     dpTitle.textContent = sale.item
 
     dpBody.innerHTML = `
-      <div style="background:linear-gradient(135deg,rgba(14,165,233,0.08),rgba(99,102,241,0.06));border:1px solid var(--clr-border);border-radius:14px;padding:16px;text-align:center;">
+      <div style="background:var(--clr-surface-2);border:1px solid var(--clr-border);border-radius:14px;padding:16px;text-align:center;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--clr-text-muted);margin-bottom:6px">Net Total</div>
         <div style="font-size:28px;font-weight:900;color:var(--clr-primary);font-family:monospace;letter-spacing:-0.5px">₱${fmt(net)}</div>
         ${sale.discount && sale.discount > 0 ? `<div style="font-size:12px;color:var(--clr-error);margin-top:4px">Discount applied: -₱${fmt(sale.discount)}</div>` : ''}

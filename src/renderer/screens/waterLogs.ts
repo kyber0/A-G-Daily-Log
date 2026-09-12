@@ -14,7 +14,7 @@ export function renderWaterLogsScreen(container: HTMLElement): void {
       .wl-screen{display:flex;flex-direction:column;height:100%;padding:24px 32px;box-sizing:border-box;gap:18px;overflow:hidden;}
       .wl-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
       .wl-title-wrap{display:flex;align-items:center;gap:12px;}
-      .wl-icon-box{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(59,130,246,0.15),rgba(14,165,233,0.15));display:flex;align-items:center;justify-content:center;color:var(--clr-primary);flex-shrink:0;}
+      .wl-icon-box{width:42px;height:42px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);display:flex;align-items:center;justify-content:center;color:var(--clr-primary);flex-shrink:0;}
       .wl-icon-box svg{width:22px;height:22px;}
       .wl-title{margin:0;font-size:20px;font-weight:700;color:var(--clr-text);letter-spacing:-0.02em;}
       .wl-subtitle{font-size:12px;color:var(--clr-text-muted);margin-top:2px;}

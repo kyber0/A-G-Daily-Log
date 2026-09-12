@@ -628,7 +628,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
       <div class="inv-toolbar" style="justify-content:space-between;align-items:center;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(168,85,247,0.15));display:flex;align-items:center;justify-content:center;color:var(--clr-primary);">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--clr-surface-2);border:1px solid var(--clr-border);display:flex;align-items:center;justify-content:center;color:var(--clr-primary);">
               ${Icons.barChart}
             </div>
             <div>

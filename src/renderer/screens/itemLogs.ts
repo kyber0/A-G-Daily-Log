@@ -14,7 +14,7 @@ export function renderItemLogsScreen(container: HTMLElement): void {
       .il-screen{display:flex;flex-direction:column;height:100%;padding:24px 32px;box-sizing:border-box;gap:18px;overflow:hidden;}
       .il-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
       .il-title-wrap{display:flex;align-items:center;gap:12px;}
-      .il-icon-box{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(168,85,247,0.15));display:flex;align-items:center;justify-content:center;color:var(--clr-primary);flex-shrink:0;}
+      .il-icon-box{width:42px;height:42px;border-radius:12px;background:var(--clr-surface-2);border:1px solid var(--clr-border);display:flex;align-items:center;justify-content:center;color:var(--clr-primary);flex-shrink:0;}
       .il-icon-box svg{width:22px;height:22px;}
       .il-title{margin:0;font-size:20px;font-weight:700;color:var(--clr-text);letter-spacing:-0.02em;}
       .il-subtitle{font-size:12px;color:var(--clr-text-muted);margin-top:2px;}

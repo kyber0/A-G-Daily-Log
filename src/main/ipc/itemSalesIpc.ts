@@ -3,139 +3,158 @@ import { randomUUID } from 'crypto'
 import type { IpcResult, ItemSale } from '../../shared/types'
 import { withSupabaseRetry } from '../supabase/client'
 import { isOnline } from '../store/syncEngine'
-import { getCachedItemSalesByMonth, cacheItemSales, enqueueWrite, getCachedItems } from '../store/localDb'
+import { getCachedItemSalesByMonth, cacheItemSales, enqueueWrite, getCachedItems, hasPendingSyncForMonth } from '../store/localDb'
+
+function saveItemSaleOffline(sale: ItemSale): IpcResult<void> {
+  const cachedItems = getCachedItems()
+  const matched = cachedItems.find((i: any) =>
+    (sale.itemId && i.id === sale.itemId) ||
+    (sale.item && (i.name as string).toLowerCase() === sale.item.toLowerCase()) ||
+    (sale.itemCode && i.code && (i.code as string).toLowerCase() === sale.itemCode.toLowerCase())
+  )
+  const resolvedItemId = (matched?.id as string) || sale.itemId || randomUUID()
+  const unitPrice = sale.price > 0 ? sale.price : Number(matched?.srp) || 0
+  const saleId = randomUUID()
+  const movementId = randomUUID()
+
+  // 1. Cache to local SQLite immediately
+  cacheItemSales([{
+    id: saleId,
+    item_id: resolvedItemId,
+    item_name: (matched?.name as string) || sale.item || 'Unknown Item',
+    item_code: (matched?.code as string) || sale.itemCode || null,
+    item_srp: unitPrice,
+    category_name: (matched?.category_name as string) || sale.category || null,
+    quantity: sale.qty || 0,
+    unit_price_at_sale: unitPrice,
+    discount: sale.discount || 0,
+    date: sale.date,
+    remarks: sale.remarks || null,
+    stock_movement_id: movementId,
+    created_at: new Date().toISOString()
+  }])
+
+  // 2. Queue for background sync when back online
+  enqueueWrite('stock_movements', 'insert', {
+    id: movementId,
+    item_id: resolvedItemId,
+    direction: 'out',
+    quantity: sale.qty || 0,
+    buyer_id: sale.buyerId || null,
+    date: sale.date,
+    source: 'sales_entry',
+    note: sale.remarks ? `Retail sale to ${sale.remarks}` : 'Retail counter sale'
+  })
+  enqueueWrite('item_sales', 'insert', {
+    id: saleId,
+    item_id: resolvedItemId,
+    quantity: sale.qty || 0,
+    unit_price_at_sale: unitPrice,
+    discount: sale.discount || 0,
+    date: sale.date,
+    remarks: sale.remarks || null,
+    stock_movement_id: movementId
+  })
+
+  return { ok: true, data: undefined }
+}
 
 export function registerItemSalesIpc(): void {
   ipcMain.handle('itemSales:save', async (_event, sale: ItemSale): Promise<IpcResult<void>> => {
     try {
       if (!isOnline()) {
-        const cachedItems = getCachedItems()
-        const matched = cachedItems.find((i: any) =>
-          (sale.itemId && i.id === sale.itemId) ||
-          (sale.item && (i.name as string).toLowerCase() === sale.item.toLowerCase()) ||
-          (sale.itemCode && i.code && (i.code as string).toLowerCase() === sale.itemCode.toLowerCase())
-        )
-        const resolvedItemId = (matched?.id as string) || sale.itemId || randomUUID()
-        const unitPrice = sale.price > 0 ? sale.price : Number(matched?.srp) || 0
-        const saleId = randomUUID()
-        const movementId = randomUUID()
-
-        // 1. Cache to local SQLite immediately
-        cacheItemSales([{
-          id: saleId,
-          item_id: resolvedItemId,
-          item_name: (matched?.name as string) || sale.item || 'Unknown Item',
-          item_code: (matched?.code as string) || sale.itemCode || null,
-          item_srp: unitPrice,
-          category_name: (matched?.category_name as string) || sale.category || null,
-          quantity: sale.qty || 0,
-          unit_price_at_sale: unitPrice,
-          discount: sale.discount || 0,
-          date: sale.date,
-          remarks: sale.remarks || null,
-          stock_movement_id: movementId,
-          created_at: new Date().toISOString()
-        }])
-
-        // 2. Queue for background sync when back online
-        enqueueWrite('stock_movements', 'insert', {
-          id: movementId,
-          item_id: resolvedItemId,
-          direction: 'out',
-          quantity: sale.qty || 0,
-          buyer_id: sale.buyerId || null,
-          date: sale.date,
-          source: 'sales_entry',
-          note: sale.remarks ? `Retail sale to ${sale.remarks}` : 'Retail counter sale'
-        })
-        enqueueWrite('item_sales', 'insert', {
-          id: saleId,
-          item_id: resolvedItemId,
-          quantity: sale.qty || 0,
-          unit_price_at_sale: unitPrice,
-          discount: sale.discount || 0,
-          date: sale.date,
-          remarks: sale.remarks || null,
-          stock_movement_id: movementId
-        })
-
-        return { ok: true, data: undefined }
+        return saveItemSaleOffline(sale)
       }
 
-      return await withSupabaseRetry(async (sb) => {
-        // 1. Resolve item ID
-        const { itemId, unitPrice } = await resolveItemId(sb, sale, true)
+      try {
+        const res = await withSupabaseRetry<IpcResult<void>>(async (sb): Promise<IpcResult<void>> => {
+          // 1. Resolve item ID
+          const { itemId, unitPrice } = await resolveItemId(sb, sale, true)
 
-        if (!itemId) {
-          return { ok: false, error: `Product "${sale.item}" not found in catalog. Please select a valid product.` }
-        }
-
-        // Resolve buyer
-        let buyerId: string | null = null
-        const OWN_SHOP_NAME = 'A&G (LW-BAAO)'
-
-        if (sale.buyerId) {
-          buyerId = sale.buyerId
-        } else {
-          const remarkTrimmed = sale.remarks && sale.remarks.trim() ? sale.remarks.trim() : ''
-          if (remarkTrimmed) {
-            const { data: buyerData } = await sb.from('buyers').select('id').ilike('name', remarkTrimmed).limit(1)
-            if (buyerData && buyerData.length > 0) buyerId = buyerData[0].id
+          if (!itemId) {
+            return { ok: false, error: `Product "${sale.item}" not found in catalog. Please select a valid product.` }
           }
-          if (!buyerId) {
-            const isOwnShop = !remarkTrimmed || remarkTrimmed.toUpperCase().includes('A&G')
-            if (isOwnShop) {
-              const { data: ownData } = await sb.from('buyers').select('id').ilike('name', OWN_SHOP_NAME).limit(1)
-              if (ownData && ownData.length > 0) {
-                buyerId = ownData[0].id
-              } else {
-                const { data: newBuyer } = await sb.from('buyers').insert({ name: OWN_SHOP_NAME, is_own_shop: true }).select('id').single()
-                if (newBuyer) buyerId = newBuyer.id
+
+          // Resolve buyer
+          let buyerId: string | null = null
+          const OWN_SHOP_NAME = 'A&G (LW-BAAO)'
+
+          if (sale.buyerId) {
+            buyerId = sale.buyerId
+          } else {
+            const remarkTrimmed = sale.remarks && sale.remarks.trim() ? sale.remarks.trim() : ''
+            if (remarkTrimmed) {
+              const { data: buyerData } = await sb.from('buyers').select('id').ilike('name', remarkTrimmed).limit(1)
+              if (buyerData && buyerData.length > 0) buyerId = buyerData[0].id
+            }
+            if (!buyerId) {
+              const isOwnShop = !remarkTrimmed || remarkTrimmed.toUpperCase().includes('A&G')
+              if (isOwnShop) {
+                const { data: ownData } = await sb.from('buyers').select('id').ilike('name', OWN_SHOP_NAME).limit(1)
+                if (ownData && ownData.length > 0) {
+                  buyerId = ownData[0].id
+                } else {
+                  const { data: newBuyer } = await sb.from('buyers').insert({ name: OWN_SHOP_NAME, is_own_shop: true }).select('id').single()
+                  if (newBuyer) buyerId = newBuyer.id
+                }
               }
             }
           }
-        }
 
-        // 2. Insert into stock_movements
-        const { data: movement, error: movErr } = await sb
-          .from('stock_movements')
-          .insert({
+          // 2. Insert into stock_movements
+          const { data: movement, error: movErr } = await sb
+            .from('stock_movements')
+            .insert({
+              item_id: itemId,
+              direction: 'out',
+              quantity: sale.qty || 0,
+              buyer_id: buyerId,
+              date: sale.date,
+              source: 'sales_entry',
+              note: sale.remarks ? `Retail sale to ${sale.remarks}` : 'Retail counter sale'
+            })
+            .select('id')
+            .single()
+
+          if (movErr) console.error('[itemSales:save] Movement insert error:', movErr)
+
+          // 3. Insert into item_sales
+          const { error: saleErr } = await sb.from('item_sales').insert({
             item_id: itemId,
-            direction: 'out',
             quantity: sale.qty || 0,
-            buyer_id: buyerId,
+            unit_price_at_sale: unitPrice,
+            discount: sale.discount || 0,
             date: sale.date,
-            source: 'sales_entry',
-            note: sale.remarks ? `Retail sale to ${sale.remarks}` : 'Retail counter sale'
+            remarks: sale.remarks || null,
+            stock_movement_id: movement?.id || null
           })
-          .select('id')
-          .single()
 
-        if (movErr) console.error('[itemSales:save] Movement insert error:', movErr)
-
-        // 3. Insert into item_sales
-        const { error: saleErr } = await sb.from('item_sales').insert({
-          item_id: itemId,
-          quantity: sale.qty || 0,
-          unit_price_at_sale: unitPrice,
-          discount: sale.discount || 0,
-          date: sale.date,
-          remarks: sale.remarks || null,
-          stock_movement_id: movement?.id || null
+          if (saleErr) return { ok: false, error: saleErr.message }
+          return { ok: true, data: undefined }
         })
 
-        if (saleErr) return { ok: false, error: saleErr.message }
+        if (!res.ok) {
+          console.warn('[itemSales:save] Online save failed, falling back to offline:', res.error)
+          return saveItemSaleOffline(sale)
+        }
         return { ok: true, data: undefined }
-      })
+      } catch (onlineErr) {
+        console.warn('[itemSales:save] Online save threw exception, falling back to offline:', onlineErr)
+        return saveItemSaleOffline(sale)
+      }
     } catch (e: unknown) {
-      console.error('Failed to save item sale:', e)
-      return { ok: false, error: String(e) }
+      console.error('Failed to save item sale, falling back to offline:', e)
+      return saveItemSaleOffline(sale)
     }
   })
 
   ipcMain.handle('itemSales:loadMonth', async (_event, monthStr: string): Promise<IpcResult<ItemSale[]>> => {
     // monthStr: YYYY-MM
     try {
+      if (hasPendingSyncForMonth('item_sales', monthStr)) {
+        return loadItemSalesFromCache(monthStr)
+      }
+
       if (!isOnline()) {
         return loadItemSalesFromCache(monthStr)
       }
@@ -165,7 +184,7 @@ export function registerItemSalesIpc(): void {
           return loadItemSalesFromCache(monthStr)
         }
 
-        if (data && data.length > 0) {
+        if (data && data.length > 0 && !hasPendingSyncForMonth('item_sales', monthStr)) {
           cacheItemSales(data.map((r: any) => ({
             id: r.id,
             item_id: r.items?.id || null,

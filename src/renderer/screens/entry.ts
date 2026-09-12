@@ -377,12 +377,44 @@ export function renderEntryScreen(
       }
     })
 
-    document.getElementById('btn-refresh')!.addEventListener('click', () => {
-      rows = []
-      dayExpenses = []
-      refreshTable()
-      loadExistingDay()
-      showToast('Reloaded from database', 'success')
+    document.getElementById('btn-refresh')!.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-refresh') as HTMLButtonElement | null
+      if (btn) btn.disabled = true
+      try {
+        const result = await window.api.loadDay(currentDate)
+        if (result.ok && result.data.length > 0) {
+          rows = result.data
+          reassignSns()
+          refreshTable()
+          await window.api.clearDraft(currentDate)
+          showToast(`Reloaded ${rows.length} entries for this date.`, 'success')
+        } else if (result.ok && result.data.length === 0) {
+          // If database/cache is empty, check if an unsaved draft exists
+          const draftRes = await window.api.getDraft(currentDate)
+          if (draftRes.ok && draftRes.data && draftRes.data.rows.length > 0) {
+            rows = draftRes.data.rows
+            reassignSns()
+            refreshTable()
+            showToast(`Preserved ${rows.length} unsaved entries from draft.`, 'info')
+          } else {
+            rows = []
+            refreshTable()
+            showToast('No entries found for this date.', 'info')
+          }
+        } else if (!result.ok) {
+          showToast(`Reload failed: ${result.error}`, 'error')
+        }
+
+        const expResult = await window.api.loadDayExpenses(currentDate)
+        if (expResult.ok) {
+          dayExpenses = expResult.data
+          refreshExpenseTotals()
+        }
+      } catch (err: unknown) {
+        showToast(`Failed to refresh: ${err}`, 'error')
+      } finally {
+        if (btn) btn.disabled = false
+      }
     })
 
     // ── Custom Container Combobox ─────────────────────────────────────────────

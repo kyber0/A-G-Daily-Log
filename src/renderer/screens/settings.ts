@@ -1618,7 +1618,7 @@ export function renderSettingsScreen(
                     <span id="full-backup-progress-pct" style="font-size:12px;font-weight:700;color:var(--clr-primary);font-family:monospace;">0%</span>
                   </div>
                   <div style="width:100%;height:8px;border-radius:4px;background:var(--clr-border);overflow:hidden;margin-bottom:8px;">
-                    <div id="full-backup-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg, #2563eb, #3b82f6);transition:width 0.2s ease;border-radius:4px;"></div>
+                    <div id="full-backup-progress-bar" style="width:0%;height:100%;background:var(--clr-primary);transition:width 0.2s ease;border-radius:4px;"></div>
                   </div>
                   <div id="full-backup-status-msg" style="font-size:12px;color:var(--clr-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                     Analyzing records...
@@ -1839,7 +1839,7 @@ export function renderSettingsScreen(
                     </div>
 
                     <div style="width:100%;height:8px;border-radius:4px;background:var(--clr-surface);overflow:hidden;border:1px solid var(--clr-border);">
-                      <div id="st-dl-fill" style="height:100%;background:linear-gradient(90deg,var(--clr-primary),#38bdf8);border-radius:4px;width:${updateState.progress?.percent || 0}%;transition:width 0.2s ease;"></div>
+                      <div id="st-dl-fill" style="height:100%;background:var(--clr-primary);border-radius:4px;width:${updateState.progress?.percent || 0}%;transition:width 0.2s ease;"></div>
                     </div>
 
                     <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--clr-text-muted);">
@@ -1897,7 +1897,7 @@ export function renderSettingsScreen(
               </div>
               <div class="st-card-body">
                 <div style="display:flex;align-items:center;gap:20px;">
-                  <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--clr-primary),#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:900;box-shadow:var(--shadow-md);">
+                  <div style="width:64px;height:64px;border-radius:16px;background:var(--clr-primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:900;box-shadow:var(--shadow-md);">
                     A&G
                   </div>
                   <div>

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { randomUUID } from 'crypto'
 import type { SaleRow, IpcResult, DayTarget, ExpenseEntry } from '../../shared/types'
 import { getSupabase } from '../supabase/client'
-import { isOnline } from '../store/syncEngine'
+import { isOnline, drainQueue } from '../store/syncEngine'
 import { invalidateHistoryCache } from './historyIpc'
 import {
   enqueueWrite,
@@ -14,84 +14,121 @@ import {
   getCachedExpensesByDate,
   getCachedContainerTypes,
   getCachedWaterTypes,
+  hasPendingSyncForDate,
 } from '../store/localDb'
 
 export function registerDayIpc(): void {
   ipcMain.handle('loadDay', async (_event, date: string): Promise<IpcResult<SaleRow[]>> => {
     try {
-      // ── Online: fetch from Supabase and refresh cache ──────────────────────
-      if (isOnline()) {
-        const sb = await getSupabase()
-        const { data, error } = await sb
-          .from('refill_sales')
-          .select('id, sn, container_type_id, container_type_raw, water_type_id, water_type_raw, quantity, mode, unit_price, total, source_file, source_sheet')
-          .eq('date', date)
-          .order('sn', { ascending: true })
-
-        if (!error && data) {
-          // Update local cache
-          deleteRefillSalesByDate(date)
-          if (data.length > 0) {
-            cacheRefillSales(data.map(r => ({ ...r, date })))
-          }
+      // If there are pending sync queue writes for this date, Supabase has stale data.
+      // Attempt to drain first if online, and fall back to cache if still pending or offline.
+      if (hasPendingSyncForDate('refill_sales', date)) {
+        if (isOnline()) {
+          try { await drainQueue() } catch {}
         }
-
-        if (error) {
-          console.warn('[loadDay] Supabase error, falling back to cache:', error.message)
+        if (hasPendingSyncForDate('refill_sales', date)) {
           return loadDayFromCache(date)
         }
+      }
 
-        const rows: SaleRow[] = (data || []).map((r, idx) => ({
-          sn: r.sn || idx + 1,
-          container: r.container_type_raw || '',
-          water: r.water_type_raw || '',
-          qty: Number(r.quantity) || 0,
-          mode: (r.mode === 'deliver' ? 'DELIVER' : 'PICKUP') as 'PICKUP' | 'DELIVER',
-          price: Number(r.unit_price) || 0
-        }))
-        return { ok: true, data: rows }
+      // ── Online: fetch from Supabase and refresh cache ──────────────────────
+      if (isOnline()) {
+        try {
+          const sb = await getSupabase()
+          const { data, error } = await sb
+            .from('refill_sales')
+            .select('id, sn, container_type_id, container_type_raw, water_type_id, water_type_raw, quantity, mode, unit_price, total, source_file, source_sheet')
+            .eq('date', date)
+            .order('sn', { ascending: true })
+
+          if (!error && data) {
+            // Only update local cache if no local writes were enqueued in the meantime
+            if (!hasPendingSyncForDate('refill_sales', date)) {
+              deleteRefillSalesByDate(date)
+              if (data.length > 0) {
+                cacheRefillSales(data.map(r => ({ ...r, date })))
+              }
+            }
+          }
+
+          if (error) {
+            console.warn('[loadDay] Supabase error, falling back to cache:', error.message)
+            return loadDayFromCache(date)
+          }
+
+          const rows: SaleRow[] = (data || []).map((r, idx) => ({
+            sn: r.sn || idx + 1,
+            container: r.container_type_raw || '',
+            water: r.water_type_raw || '',
+            qty: Number(r.quantity) || 0,
+            mode: (r.mode === 'deliver' ? 'DELIVER' : 'PICKUP') as 'PICKUP' | 'DELIVER',
+            price: Number(r.unit_price) || 0
+          }))
+          return { ok: true, data: rows }
+        } catch (onlineErr) {
+          console.warn('[loadDay] Online query failed, falling back to cache:', onlineErr)
+          return loadDayFromCache(date)
+        }
       }
 
       // ── Offline: read from local cache ─────────────────────────────────────
       return loadDayFromCache(date)
     } catch (e: unknown) {
-      return { ok: false, error: String(e) }
+      console.warn('[loadDay] Exception, falling back to cache:', e)
+      return loadDayFromCache(date)
     }
   })
 
   ipcMain.handle('day:loadExpenses', async (_event, date: string): Promise<IpcResult<ExpenseEntry[]>> => {
     try {
-      if (isOnline()) {
-        const sb = await getSupabase()
-        const { data, error } = await sb
-          .from('daily_expenses')
-          .select('id, sn, description, total, remarks, source_file, source_sheet')
-          .eq('date', date)
-          .order('sn', { ascending: true })
-
-        if (!error && data) {
-          deleteDailyExpensesByDate(date)
-          if (data.length > 0) {
-            cacheDailyExpenses(data.map(r => ({ ...r, date })))
-          }
+      if (hasPendingSyncForDate('daily_expenses', date)) {
+        if (isOnline()) {
+          try { await drainQueue() } catch {}
         }
-
-        if (error) {
-          console.warn('[day:loadExpenses] Supabase error, falling back to cache:', error.message)
+        if (hasPendingSyncForDate('daily_expenses', date)) {
           return loadExpensesFromCache(date)
         }
+      }
 
-        const expenses: ExpenseEntry[] = (data || []).map(e => ({
-          desc: e.description || '',
-          amount: Number(e.total) || 0,
-          remarks: e.remarks || ''
-        }))
-        return { ok: true, data: expenses }
+      if (isOnline()) {
+        try {
+          const sb = await getSupabase()
+          const { data, error } = await sb
+            .from('daily_expenses')
+            .select('id, sn, description, total, remarks, source_file, source_sheet')
+            .eq('date', date)
+            .order('sn', { ascending: true })
+
+          if (!error && data) {
+            if (!hasPendingSyncForDate('daily_expenses', date)) {
+              deleteDailyExpensesByDate(date)
+              if (data.length > 0) {
+                cacheDailyExpenses(data.map(r => ({ ...r, date })))
+              }
+            }
+          }
+
+          if (error) {
+            console.warn('[day:loadExpenses] Supabase error, falling back to cache:', error.message)
+            return loadExpensesFromCache(date)
+          }
+
+          const expenses: ExpenseEntry[] = (data || []).map(e => ({
+            desc: e.description || '',
+            amount: Number(e.total) || 0,
+            remarks: e.remarks || ''
+          }))
+          return { ok: true, data: expenses }
+        } catch (onlineErr) {
+          console.warn('[day:loadExpenses] Online query failed, falling back to cache:', onlineErr)
+          return loadExpensesFromCache(date)
+        }
       }
 
       return loadExpensesFromCache(date)
     } catch (e: unknown) {
-      return { ok: false, error: String(e) }
+      console.warn('[day:loadExpenses] Exception, falling back to cache:', e)
+      return loadExpensesFromCache(date)
     }
   })
 
@@ -122,26 +159,36 @@ export function registerDayIpc(): void {
         cacheDailyExpenses(expenseRows)
       }
 
-      if (isOnline()) {
-        const sb = await getSupabase()
-        if (expenses.length > 0) {
-          const rows = expenseRows.map(({ id: _id, ...r }) => r) // exclude local uuid
-          const { data: insertedExp, error: expErr } = await sb.from('daily_expenses').insert(rows).select('id')
-          if (expErr) return { ok: false, error: expErr.message }
-          if (insertedExp && insertedExp.length > 0) {
-            const newExpIds = insertedExp.map((r: any) => r.id)
-            await sb.from('daily_expenses').delete().eq('date', date).not('id', 'in', `(${newExpIds.join(',')})`)
-          }
-        } else {
-          await sb.from('daily_expenses').delete().eq('date', date)
-        }
-      } else {
-        // Queue: delete-then-insert pattern for date
+      const queueExpensesOffline = () => {
         enqueueWrite('daily_expenses', 'delete', { _deleteByDate: date })
         for (const row of expenseRows) {
           const { id: _id, ...r } = row
           enqueueWrite('daily_expenses', 'insert', r)
         }
+      }
+
+      if (isOnline()) {
+        try {
+          const sb = await getSupabase()
+          if (expenses.length > 0) {
+            const rows = expenseRows.map(({ id: _id, ...r }) => r) // exclude local uuid
+            const { data: insertedExp, error: expErr } = await sb.from('daily_expenses').insert(rows).select('id')
+            if (expErr) {
+              console.warn('[day:saveExpenses] Online insert failed, queueing offline:', expErr.message)
+              queueExpensesOffline()
+            } else if (insertedExp && insertedExp.length > 0) {
+              const newExpIds = insertedExp.map((r: any) => r.id)
+              await sb.from('daily_expenses').delete().eq('date', date).not('id', 'in', `(${newExpIds.join(',')})`)
+            }
+          } else {
+            await sb.from('daily_expenses').delete().eq('date', date)
+          }
+        } catch (onlineErr) {
+          console.warn('[day:saveExpenses] Online save threw error, queueing offline:', onlineErr)
+          queueExpensesOffline()
+        }
+      } else {
+        queueExpensesOffline()
       }
 
       invalidateHistoryCache()
@@ -164,7 +211,16 @@ export function registerDayIpc(): void {
 
       let result: IpcResult<DayTarget>
       if (isOnline()) {
-        result = await saveDayOnline(date, rows, expenses, sourceFile, sourceSheet, mon, day)
+        try {
+          result = await saveDayOnline(date, rows, expenses, sourceFile, sourceSheet, mon, day)
+          if (!result.ok) {
+            console.warn('[saveDay] Online save failed, falling back to offline save:', result.error)
+            result = saveDayOffline(date, rows, expenses, sourceFile, sourceSheet, mon, day)
+          }
+        } catch (onlineErr) {
+          console.warn('[saveDay] Online save threw exception, falling back to offline save:', onlineErr)
+          result = saveDayOffline(date, rows, expenses, sourceFile, sourceSheet, mon, day)
+        }
       } else {
         result = saveDayOffline(date, rows, expenses, sourceFile, sourceSheet, mon, day)
       }
