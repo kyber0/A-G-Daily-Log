@@ -691,17 +691,19 @@ export function renderEntryScreen(
     if (!isClosed && choice === 'confirm') {
       const reason = capturedReason.trim() || (isSunday ? 'Sunday' : 'Closed')
       
-      // Save current UI data to Excel before marking closed
-      showOverlay()
-      const saveResult = await window.api.saveDay(currentDate, rows)
-      if (!saveResult.ok) {
-        hideOverlay()
-        showToast(`Failed to save before closing: ${saveResult.error}`, 'error', 6000)
-        return
+      // Only save current UI data if there are actual sales rows
+      if (rows.length > 0) {
+        showOverlay()
+        const saveResult = await window.api.saveDay(currentDate, rows)
+        if (!saveResult.ok) {
+          hideOverlay()
+          showToast(`Failed to save before closing: ${saveResult.error}`, 'error', 6000)
+          return
+        }
       }
 
       const result = await window.api.markDayClosed(currentDate, reason)
-      hideOverlay()
+      if (rows.length > 0) hideOverlay()
       
       if (!result.ok) {
         showToast(result.error ?? 'Failed to mark day as closed', 'error')
@@ -712,7 +714,7 @@ export function renderEntryScreen(
       updateClosedBanner()
       await window.api.clearDraft(currentDate)
       window.api.appendLog('MARK_CLOSED', `Marked day ${currentDate} as closed (Reason: ${reason})`)
-      showToast(`Day saved and marked as closed: ${reason}`, 'success')
+      showToast(rows.length > 0 ? `Day saved and marked as closed: ${reason}` : `Day marked as closed: ${reason}`, 'success')
     }
   }
 

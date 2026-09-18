@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs'
 import { getSupabase } from '../supabase/client'
 import { readConfig } from '../store/config'
 import { isOnline } from '../store/syncEngine'
-import { getLocalDb } from '../store/localDb'
+import { getLocalDb, getDayClosuresByMonth } from '../store/localDb'
 
 /**
  * Builds the template-accurate Daily Log workbook for a specific year and month.
@@ -63,6 +63,9 @@ export async function buildDailyLogWorkbook(
     if (!expByDate.has(d)) expByDate.set(d, [])
     expByDate.get(d)!.push(e)
   }
+
+  // Load closure records for the whole month from SQLite
+  const closureMap = getDayClosuresByMonth(startDate, endDate)
 
   // Price reference for the reference table (cols J–P)
   const priceRef: Record<string, { pickup: number; deliver: number }> = {}
@@ -132,12 +135,17 @@ export async function buildDailyLogWorkbook(
     const dObj = new Date(year, monthNum - 1, day)
     const isSunday  = dObj.getDay() === 0
     const hasSales  = daySales.length > 0
-    const isClosed  = isSunday || !hasSales
+    const closureRec = closureMap.get(dateStr)
+    // Closed if:
+    // 1. Explicitly recorded in DB (user marked closed or reopened)
+    // 2. Sunday with no explicit record AND no sales (automatic rest day)
+    const isClosed  = closureRec !== undefined ? closureRec.isClosed : (isSunday && !hasSales)
+    const closureReason = closureRec?.reason || (isSunday ? 'Sunday – rest day' : '')
 
     const ws = wb.addWorksheet(sheetName, {
       properties: {
-        tabColor: isSunday
-          ? { argb: 'FFEF4444' }  // red — Sunday / closed
+        tabColor: isClosed
+          ? { argb: 'FFEF4444' }  // red — closed day
           : hasSales
             ? { argb: 'FF22C55E' }  // green — has data
             : { argb: 'FF94A3B8' }  // grey — no data
@@ -151,46 +159,59 @@ export async function buildDailyLogWorkbook(
 
     ws.views = [{ state: 'frozen', ySplit: 2 }]
 
+    // Column widths with generous padding so text and numbers have comfortable breathing room
     ws.columns = [
-      { width: 5 },   // A - SN
-      { width: 20 },  // B - CONTAINER TYPE
-      { width: 14 },  // C - WATER TYPE
-      { width: 10 },  // D - QUANTITY
-      { width: 14 },  // E - PRICE (PICK UP)
-      { width: 14 },  // F - PRICE (DELIVER)
-      { width: 14 },  // G - TOTAL
-      { width: 2 },   // H - spacer
-      { width: 16 },  // I - price ref container
-      { width: 12 },  // J - ALKALINE
-      { width: 12 },  // K - DELIVERED
-      { width: 12 },  // L - PURIFIED
-      { width: 12 },  // M - DELIVERED
-      { width: 12 },  // N - MINERAL
-      { width: 12 },  // O - DELIVERED
-      { width: 2 },   // P - spacer
-      { width: 5 },   // Q - SN (expenses)
-      { width: 26 },  // R - DESCRIPTION
-      { width: 14 },  // S - TOTAL (expenses)
-      { width: 22 },  // T - REMARKS
+      { width: 6.5 }, // A - SN
+      { width: 24 },  // B - CONTAINER TYPE
+      { width: 18 },  // C - WATER TYPE
+      { width: 13 },  // D - QUANTITY
+      { width: 17 },  // E - PRICE (PICK UP)
+      { width: 18 },  // F - PRICE (DELIVER)
+      { width: 18 },  // G - TOTAL
+      { width: 4 },   // H - spacer
+      { width: 18 },  // I - price ref container
+      { width: 15 },  // J - ALKALINE
+      { width: 16 },  // K - DELIVERED
+      { width: 15 },  // L - PURIFIED
+      { width: 16 },  // M - DELIVERED
+      { width: 15 },  // N - MINERAL
+      { width: 16 },  // O - DELIVERED
+      { width: 4 },   // P - spacer
+      { width: 6.5 }, // Q - SN (expenses)
+      { width: 30 },  // R - DESCRIPTION
+      { width: 18 },  // S - TOTAL (expenses)
+      { width: 26 },  // T - REMARKS
     ]
 
     // ── Row 1 — Section title banner ─────────────────────────────────────────
     const DAYS_OF_WEEK = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
     const dayName = DAYS_OF_WEEK[dObj.getDay()]
     const titleRow = ws.getRow(1)
-    titleRow.height = 24
+    titleRow.height = 28
 
     // Sales section banner (A1:G1)
     ws.mergeCells('A1:G1')
     const salesTitle = titleRow.getCell(1)
-    salesTitle.value = `A&G WATER REFILL  ·  ${dayName}, ${monFull} ${dayPad}, ${year}`
-    salesTitle.font  = { bold: true, size: 11, color: { argb: C.white }, name: 'Calibri' }
-    salesTitle.fill  = fill(C.navyDark)
-    salesTitle.alignment = { horizontal: 'center', vertical: 'middle' }
-    salesTitle.border = borders(C.navyDark, 'medium')
+    if (isClosed) {
+      salesTitle.value = `A&G WATER REFILL  ·  ${dayName}, ${monFull} ${dayPad}, ${year}  [CLOSED]`
+      salesTitle.font  = { bold: true, size: 11, color: { argb: C.white }, name: 'Calibri' }
+      salesTitle.fill  = fill('FF991B1B')
+      salesTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+      salesTitle.border = borders('FF7F1D1D', 'medium')
+    } else {
+      salesTitle.value = `A&G WATER REFILL  ·  ${dayName}, ${monFull} ${dayPad}, ${year}`
+      salesTitle.font  = { bold: true, size: 11, color: { argb: C.white }, name: 'Calibri' }
+      salesTitle.fill  = fill(C.navyDark)
+      salesTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+      salesTitle.border = borders(C.navyDark, 'medium')
+    }
 
-    // Spacer (H1) — just color
-    ws.getCell('H1').fill = fill('FFF1F5F9')
+    // Spacer (H1) — note cell
+    const spacerH = ws.getCell('H1')
+    spacerH.fill = fill(isClosed ? 'FFFEE2E2' : 'FFF1F5F9')
+    if (isClosed) {
+      spacerH.value = `CLOSED: ${closureReason || 'Rest Day'}`
+    }
 
     // Price reference banner (I1:O1)
     ws.mergeCells('I1:O1')
@@ -207,20 +228,28 @@ export async function buildDailyLogWorkbook(
     // Expense section banner (Q1:T1)
     ws.mergeCells('Q1:T1')
     const expTitle = titleRow.getCell(17)
-    expTitle.value = `DAILY EXPENSES  ·  ${dateStr}`
-    expTitle.font  = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
-    expTitle.fill  = fill(C.expDark)
-    expTitle.alignment = { horizontal: 'center', vertical: 'middle' }
-    expTitle.border = borders(C.expDark, 'medium')
+    if (isClosed) {
+      expTitle.value = `DAILY EXPENSES  ·  ${dateStr}  [CLOSED]`
+      expTitle.font  = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+      expTitle.fill  = fill('FF991B1B')
+      expTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+      expTitle.border = borders('FF7F1D1D', 'medium')
+    } else {
+      expTitle.value = `DAILY EXPENSES  ·  ${dateStr}`
+      expTitle.font  = { bold: true, size: 10, color: { argb: C.white }, name: 'Calibri' }
+      expTitle.fill  = fill(C.expDark)
+      expTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+      expTitle.border = borders(C.expDark, 'medium')
+    }
 
     // ── Row 2 — Column headers ────────────────────────────────────────────────
     const hRow = ws.getRow(2)
-    hRow.height = 22
+    hRow.height = 26
 
     const setH = (col: number, val: string, bgArgb = C.navyDark, textArgb = C.white) => {
       const cell = hRow.getCell(col)
       cell.value     = val
-      cell.font      = { bold: true, size: 9, color: { argb: textArgb }, name: 'Calibri' }
+      cell.font      = { bold: true, size: 9.5, color: { argb: textArgb }, name: 'Calibri' }
       cell.fill      = fill(bgArgb)
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
       cell.border    = borders(bgArgb, 'medium')
@@ -252,7 +281,7 @@ export async function buildDailyLogWorkbook(
       const sale   = daySales[i]
       const exp    = dayExpenses[i]
       const row    = ws.getRow(rowNum)
-      row.height   = 16
+      row.height   = 22          // comfortable row height with breathing space
 
       const isEvenRow   = i % 2 === 1
       const salesBg     = isEvenRow ? C.blueLight : C.white
@@ -383,10 +412,71 @@ export async function buildDailyLogWorkbook(
       ws.getCell(rowNum, 16).fill = fill('FFF1F5F9')
     }
 
+    // ── In-Table Closed Day Panel (prominent notice inside table area) ────────
+    if (isClosed) {
+      const panelRow = daySales.length === 0 ? 6 : Math.min(daySales.length + 3, 28)
+      const reasonText = closureReason || 'Closed / Rest Day'
+
+      // Sales side panel (B:F)
+      ws.mergeCells(`B${panelRow}:F${panelRow}`)
+      const cpHeader = ws.getCell(`B${panelRow}`)
+      cpHeader.value = 'STORE CLOSED'
+      cpHeader.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' }, name: 'Calibri' }
+      cpHeader.fill = fill('FFDC2626')
+      cpHeader.alignment = { horizontal: 'center', vertical: 'middle' }
+      cpHeader.border = borders('FFB91C1C', 'medium')
+      ws.getRow(panelRow).height = 26
+
+      ws.mergeCells(`B${panelRow + 1}:F${panelRow + 1}`)
+      const cpBody = ws.getCell(`B${panelRow + 1}`)
+      cpBody.value = `REASON: ${reasonText.toUpperCase()}`
+      cpBody.font = { bold: true, size: 10, color: { argb: 'FF991B1B' }, name: 'Calibri' }
+      cpBody.fill = fill('FFFEE2E2')
+      cpBody.alignment = { horizontal: 'center', vertical: 'middle' }
+      cpBody.border = borders('FFDC2626', 'thin')
+      ws.getRow(panelRow + 1).height = 24
+
+      ws.mergeCells(`B${panelRow + 2}:F${panelRow + 2}`)
+      const cpSub = ws.getCell(`B${panelRow + 2}`)
+      cpSub.value = daySales.length === 0 ? 'No transactions recorded for this day.' : 'Operations ended early for this day.'
+      cpSub.font = { italic: true, size: 9, color: { argb: 'FF7F1D1D' }, name: 'Calibri' }
+      cpSub.fill = fill('FFFEE2E2')
+      cpSub.alignment = { horizontal: 'center', vertical: 'middle' }
+      cpSub.border = borders('FFDC2626', 'thin')
+      ws.getRow(panelRow + 2).height = 20
+
+      // Expense side panel (R:T) if no expenses
+      if (dayExpenses.length === 0) {
+        ws.mergeCells(`R${panelRow}:T${panelRow}`)
+        const epHeader = ws.getCell(`R${panelRow}`)
+        epHeader.value = 'STORE CLOSED'
+        epHeader.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' }, name: 'Calibri' }
+        epHeader.fill = fill('FFDC2626')
+        epHeader.alignment = { horizontal: 'center', vertical: 'middle' }
+        epHeader.border = borders('FFB91C1C', 'medium')
+
+        ws.mergeCells(`R${panelRow + 1}:T${panelRow + 1}`)
+        const epBody = ws.getCell(`R${panelRow + 1}`)
+        epBody.value = reasonText.toUpperCase()
+        epBody.font = { bold: true, size: 9.5, color: { argb: 'FF991B1B' }, name: 'Calibri' }
+        epBody.fill = fill('FFFEE2E2')
+        epBody.alignment = { horizontal: 'center', vertical: 'middle' }
+        epBody.border = borders('FFDC2626', 'thin')
+
+        ws.mergeCells(`R${panelRow + 2}:T${panelRow + 2}`)
+        const epSub = ws.getCell(`R${panelRow + 2}`)
+        epSub.value = 'No expenses recorded.'
+        epSub.font = { italic: true, size: 9, color: { argb: 'FF7F1D1D' }, name: 'Calibri' }
+        epSub.fill = fill('FFFEE2E2')
+        epSub.alignment = { horizontal: 'center', vertical: 'middle' }
+        epSub.border = borders('FFDC2626', 'thin')
+      }
+    }
+
     // ── Totals row (row 33 — after 30 data rows starting at row 3) ──────────
     const totRowNum = 33
     const totRow = ws.getRow(totRowNum)
-    totRow.height = 24
+    totRow.height = 28
 
     // Fill all columns navy
     for (let c = 1; c <= 20; c++) {
@@ -425,6 +515,53 @@ export async function buildDailyLogWorkbook(
     totRow.getCell(19).font = { bold: true, size: 11, color: { argb: 'FFFCA5A5' }, name: 'Calibri' }
     totRow.getCell(19).alignment = { horizontal: 'right', vertical: 'middle' }
 
+    // ── Closed-day footer banner (rows 34–36) ─────────────────────────────────
+    if (isClosed) {
+      // Empty spacer row
+      ws.getRow(34).height = 8
+
+      // Banner row 35 — "DAY CLOSED" title
+      const bannerRow = ws.getRow(35)
+      bannerRow.height = 30
+      ws.mergeCells('A35:G35')
+      const bannerCell = bannerRow.getCell(1)
+      bannerCell.value = 'DAY CLOSED'
+      bannerCell.font  = { bold: true, size: 14, color: { argb: 'FFFFFFFF' }, name: 'Calibri' }
+      bannerCell.fill  = fill('FFDC2626')
+      bannerCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      bannerCell.border = borders('FFB91C1C', 'medium')
+
+      // Mirror banner across expense section too
+      ws.mergeCells('Q35:T35')
+      const bannerExp = bannerRow.getCell(17)
+      bannerExp.value = 'DAY CLOSED'
+      bannerExp.font  = { bold: true, size: 14, color: { argb: 'FFFFFFFF' }, name: 'Calibri' }
+      bannerExp.fill  = fill('FFDC2626')
+      bannerExp.alignment = { horizontal: 'center', vertical: 'middle' }
+      bannerExp.border = borders('FFB91C1C', 'medium')
+
+      // Reason row 36
+      const reasonText = closureReason || 'Closed / Rest Day'
+      const reasonRow = ws.getRow(36)
+      reasonRow.height = 26
+      ws.mergeCells('A36:G36')
+      const reasonCell = reasonRow.getCell(1)
+      reasonCell.value = `EVENT / REASON: ${reasonText.toUpperCase()}`
+      reasonCell.font  = { bold: true, size: 10.5, color: { argb: 'FF991B1B' }, name: 'Calibri' }
+      reasonCell.fill  = fill('FFFEE2E2')
+      reasonCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      reasonCell.border = borders('FFDC2626', 'thin')
+
+      // Mirror reason across expense section
+      ws.mergeCells('Q36:T36')
+      const reasonExp = reasonRow.getCell(17)
+      reasonExp.value = `EVENT / REASON: ${reasonText.toUpperCase()}`
+      reasonExp.font  = reasonCell.font
+      reasonExp.fill  = reasonCell.fill
+      reasonExp.alignment = reasonCell.alignment
+      reasonExp.border = reasonCell.border
+    }
+
     // ── Water & container type lookup rows ───────────────────────────────────
     const waterTypes = currentCfg.waterTypes.length > 0 ? currentCfg.waterTypes : ['ALKALINE', 'PURIFIED', 'MINERAL']
     const containerTypes = currentCfg.containerTypes.map(ct => ct.name)
@@ -441,9 +578,19 @@ export async function buildDailyLogWorkbook(
   const totalSalesFormula = sheetNames.map(sn => `'${sn}'!G33`).join('+')
   const totalExpFormula   = sheetNames.map(sn => `'${sn}'!S33`).join('+')
 
-  const mTotRowNum = 35
+  // Prevent row 35 collision if the last day is closed (closed banner uses rows 35-36)
+  const lastDayPad = String(daysInMonth).padStart(2, '0')
+  const lastDateStr = `${year}-${monthPadded}-${lastDayPad}`
+  const lastClosureRec = closureMap.get(lastDateStr)
+  const lastDateObj = new Date(year, monthNum - 1, daysInMonth)
+  const lastIsClosed = lastClosureRec?.isClosed ?? (lastDateObj.getDay() === 0)
+
+  const mTotRowNum = lastIsClosed ? 38 : 35
+  if (lastIsClosed) {
+    lastSheet.getRow(37).height = 8
+  }
   const mTotRow = lastSheet.getRow(mTotRowNum)
-  mTotRow.height = 26
+  mTotRow.height = 30
 
   for (let c = 1; c <= 20; c++) {
     const cell = mTotRow.getCell(c)

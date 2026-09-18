@@ -1285,7 +1285,7 @@ label {
 }
 .sales-table th:last-child { text-align: right; }
 .sales-table td {
-  padding: 8px 16px;
+  padding: 11px 16px;
   border-bottom: 1px solid var(--clr-border-light);
   color: var(--clr-text);
   vertical-align: middle;

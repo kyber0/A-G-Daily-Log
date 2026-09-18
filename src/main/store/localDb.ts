@@ -672,9 +672,11 @@ export interface DayClosureRecord {
 
 /**
  * Persist a closure decision for a specific date.
- * Call this whenever a day is marked closed OR explicitly reopened.
+ * Writes to local SQLite cache immediately, then enqueues a Supabase upsert
+ * so all devices sync the same closure decisions.
  */
 export function setDayClosure(date: string, isClosed: boolean, reason: string): void {
+  const now = new Date().toISOString()
   const db = getLocalDb()
   db.prepare(`
     INSERT INTO day_closure_cache (date, is_closed, reason, updated_at)
@@ -683,7 +685,42 @@ export function setDayClosure(date: string, isClosed: boolean, reason: string): 
       is_closed  = excluded.is_closed,
       reason     = excluded.reason,
       updated_at = excluded.updated_at
-  `).run(date, isClosed ? 1 : 0, reason, new Date().toISOString())
+  `).run(date, isClosed ? 1 : 0, reason, now)
+
+  // Enqueue upsert to Supabase so all devices see the same closure state
+  enqueueWrite('day_closures', 'upsert', {
+    date,
+    is_closed: isClosed,
+    reason: reason || '',
+    updated_at: now,
+  })
+}
+
+/**
+ * Merge Supabase day_closures rows into the local day_closure_cache.
+ * Called during initial sync and reconnect sync.
+ */
+export function cacheDayClosures(
+  rows: { date: string; is_closed: boolean; reason: string; updated_at: string }[]
+): void {
+  const db = getLocalDb()
+  const upsert = db.prepare(`
+    INSERT INTO day_closure_cache (date, is_closed, reason, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET
+      is_closed  = CASE WHEN excluded.updated_at > day_closure_cache.updated_at
+                        THEN excluded.is_closed  ELSE day_closure_cache.is_closed  END,
+      reason     = CASE WHEN excluded.updated_at > day_closure_cache.updated_at
+                        THEN excluded.reason     ELSE day_closure_cache.reason     END,
+      updated_at = CASE WHEN excluded.updated_at > day_closure_cache.updated_at
+                        THEN excluded.updated_at ELSE day_closure_cache.updated_at END
+  `)
+  const txn = db.transaction(() => {
+    for (const r of rows) {
+      upsert.run(r.date, r.is_closed ? 1 : 0, r.reason || '', r.updated_at)
+    }
+  })
+  txn()
 }
 
 /**
@@ -703,3 +740,27 @@ export function getDayClosure(date: string): DayClosureRecord | null {
     reason: row.reason || ''
   }
 }
+
+/**
+ * Read all stored closure records for a given date range (inclusive, YYYY-MM-DD).
+ * Returns a Map of date → { isClosed, reason }.
+ * Used by the Excel export to bulk-load closure state without per-day queries.
+ */
+export function getDayClosuresByMonth(
+  startDate: string,
+  endDate: string
+): Map<string, { isClosed: boolean; reason: string }> {
+  const db = getLocalDb()
+  const rows = db.prepare(`
+    SELECT date, is_closed, reason FROM day_closure_cache
+    WHERE date >= ? AND date <= ?
+  `).all(startDate, endDate) as { date: string; is_closed: number; reason: string | null }[]
+
+  const map = new Map<string, { isClosed: boolean; reason: string }>()
+  for (const row of rows) {
+    map.set(row.date, { isClosed: row.is_closed === 1, reason: row.reason || '' })
+  }
+  return map
+}
+
+

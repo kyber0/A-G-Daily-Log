@@ -13,6 +13,7 @@ const ALL_TABLES = [
   'refill_sales',
   'daily_expenses',
   'item_sales',
+  'day_closures',
 ]
 
 let _isSyncing = false

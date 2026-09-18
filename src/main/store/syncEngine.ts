@@ -22,6 +22,7 @@ import {
   cacheItemSales,
   cacheRefillSales,
   cacheDailyExpenses,
+  cacheDayClosures,
   cacheRefillContainerTypes,
   cacheRefillWaterTypes,
   setLastSyncedAt,
@@ -165,9 +166,11 @@ async function replayOperation(sb: SupabaseClient, item: SyncQueueItem): Promise
       break
     }
     case 'upsert': {
-      const onConflict = item.table_name === 'refill_container_types'
-        ? 'raw_name'
-        : (item.table_name === 'refill_water_types' ? 'name' : undefined)
+      const onConflict =
+        item.table_name === 'refill_container_types' ? 'raw_name'
+        : item.table_name === 'refill_water_types'   ? 'name'
+        : item.table_name === 'day_closures'         ? 'date'
+        : undefined
       const { error } = await sb.from(item.table_name).upsert(payload, onConflict ? { onConflict } : undefined)
       if (error) throw new Error(error.message)
       break
@@ -396,6 +399,25 @@ async function _syncTable(sb: SupabaseClient, tableName: string): Promise<void> 
       const { data } = await sb.from('refill_water_types').select('id, name')
       if (data) cacheRefillWaterTypes(data.map((r: any) => ({ id: r.id, name: r.name })))
       setLastSyncedAt('refill_water_types')
+      break
+    }
+
+    case 'day_closures': {
+      const { data } = await sb
+        .from('day_closures')
+        .select('date, is_closed, reason, updated_at')
+        .order('date', { ascending: true })
+      if (data) {
+        cacheDayClosures(
+          data.map((r: any) => ({
+            date: r.date,
+            is_closed: r.is_closed === true || r.is_closed === 1,
+            reason: r.reason || '',
+            updated_at: r.updated_at || new Date().toISOString(),
+          }))
+        )
+      }
+      setLastSyncedAt('day_closures')
       break
     }
   }

@@ -35,7 +35,13 @@ vi.mock('../store/localDb', () => ({
       all: () => [],
       get: () => undefined
     })
-  })
+  }),
+  getDayClosuresByMonth: () => {
+    const map = new Map()
+    map.set('2026-09-06', { isClosed: true, reason: 'Sunday rest' })
+    map.set('2026-09-15', { isClosed: true, reason: 'Typhoon Kristine' })
+    return map
+  }
 }))
 
 describe('Full Historical Backup — Workbook Builders', () => {
@@ -43,6 +49,15 @@ describe('Full Historical Backup — Workbook Builders', () => {
     const { wb, hasData } = await buildDailyLogWorkbook(2026, 9)
     expect(wb).toBeDefined()
     expect(typeof hasData).toBe('boolean')
+
+    // Verify closed day has red tab color and visible closed panel
+    const closedSheet = wb.getWorksheet('SEP15')
+    expect(closedSheet).toBeDefined()
+    expect(closedSheet?.properties.tabColor?.argb).toBe('FFEF4444')
+    expect(closedSheet?.getCell('B6').value).toBe('STORE CLOSED')
+    expect(closedSheet?.getCell('B7').value).toContain('TYPHOON KRISTINE')
+    expect(closedSheet?.getCell('A35').value).toBe('DAY CLOSED')
+    expect(closedSheet?.getCell('A36').value).toContain('TYPHOON KRISTINE')
 
     // September has 30 days -> 30 worksheets
     const sheets = wb.worksheets
