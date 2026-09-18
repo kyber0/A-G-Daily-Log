@@ -86,6 +86,9 @@ contextBridge.exposeInMainWorld('api', {
   createFullBackup: (): Promise<IpcResult<BackupResult>> =>
     ipcRenderer.invoke('backup:fullBackup'),
 
+  getFullBackupStatus: (): Promise<{ isRunning: boolean; progress: any | null }> =>
+    ipcRenderer.invoke('backup:getFullBackupStatus'),
+
   openBackupFolder: (): Promise<void> =>
     ipcRenderer.invoke('backup:openFolder'),
 

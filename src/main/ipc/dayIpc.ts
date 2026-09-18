@@ -259,12 +259,8 @@ export function registerDayIpc(): void {
       // 2. No stored record — apply the Sunday rule automatically
       const dayOfWeek = new Date(date + 'T00:00:00').getDay()
       if (dayOfWeek === 0) {
-        // If a past Sunday has recorded sales, it was an active operating day
-        const existingSales = getCachedRefillSalesByDate(date)
-        if (existingSales.length > 0) {
-          return { ok: true, data: { isClosed: false, reason: '' } }
-        }
-        // Future Sundays or past Sundays with no sales: closed by default
+        // Sunday: always closed by default (even if sales exist from a rare open Sunday)
+        // User can explicitly reopen via "Unlock & Reopen Day" if needed
         return { ok: true, data: { isClosed: true, reason: 'Sunday' } }
       }
       // Regular weekday with no record — open

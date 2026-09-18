@@ -6,6 +6,8 @@ import { renderHistoryScreen }  from './screens/history'
 import { Icons } from './components/icons'
 import { showToast } from './components/ui'
 import { initConnectivityBanner } from './components/connectivityBanner'
+import { initBackupStateListener } from './store/backupState'
+import { initGlobalBackupWidget } from './components/globalBackupWidget'
 
 import logoImg from './assets/logo.png'
 
@@ -244,12 +246,25 @@ function handleUpdateStatus(payload: any): void {
   }
 }
 
+function navigateToSettingsBackup(): void {
+  navigateTo('settings')
+  try {
+    sessionStorage.setItem('settingsActiveTab', 'backup')
+  } catch {}
+  const backupTabBtn = document.querySelector<HTMLButtonElement>('.st-tab[data-tab="backup"]')
+  if (backupTabBtn) backupTabBtn.click()
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 async function boot(): Promise<void> {
   const appEl = document.getElementById('app')!
 
   // Initialize offline/online connectivity banner
   initConnectivityBanner()
+
+  // Initialize full historical backup tracking & global floating progress widget
+  initBackupStateListener()
+  initGlobalBackupWidget(navigateToSettingsBackup)
 
   // Global update notifications (Top-right corner panel)
   window.api.on('update:status', (payload: any) => {

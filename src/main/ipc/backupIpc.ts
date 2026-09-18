@@ -148,7 +148,11 @@ export function stopAutoBackupScheduler(): void {
   }
 }
 
+let _isFullBackupRunning = false
+let _lastFullBackupProgress: FullBackupProgress | null = null
+
 function notifyBackupProgress(progress: FullBackupProgress): void {
+  _lastFullBackupProgress = progress
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send('backup:progress', progress)
@@ -490,6 +494,16 @@ export function registerBackupIpc(): void {
 
   /** Full historical backup of all database logs from 2022 to present */
   ipcMain.handle('backup:fullBackup', async (): Promise<IpcResult<BackupResult>> => {
+    if (_isFullBackupRunning) {
+      return { ok: false, error: 'A full backup is already in progress.' }
+    }
+    _isFullBackupRunning = true
+    _lastFullBackupProgress = {
+      phase: 'daily',
+      current: 0,
+      total: 0,
+      message: 'Initializing full historical backup...'
+    }
     try {
       const config = readConfig()
       if (!config.backupFolder) {
@@ -507,7 +521,14 @@ export function registerBackupIpc(): void {
     } catch (e: unknown) {
       console.error('[backup] Full backup failed:', e)
       return { ok: false, error: String(e) }
+    } finally {
+      _isFullBackupRunning = false
     }
+  })
+
+  /** Get current full backup running state and latest progress */
+  ipcMain.handle('backup:getFullBackupStatus', (): { isRunning: boolean; progress: FullBackupProgress | null } => {
+    return { isRunning: _isFullBackupRunning, progress: _lastFullBackupProgress }
   })
 }
 

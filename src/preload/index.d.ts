@@ -39,6 +39,7 @@ export interface ElectronApi {
   clearBackupFolder: () => Promise<IpcResult<void>>
   createBackup: () => Promise<IpcResult<BackupResult>>
   createFullBackup: () => Promise<IpcResult<BackupResult>>
+  getFullBackupStatus: () => Promise<{ isRunning: boolean; progress: any | null }>
   openBackupFolder: () => Promise<void>
   getBackupFolder: () => Promise<IpcResult<string>>
 

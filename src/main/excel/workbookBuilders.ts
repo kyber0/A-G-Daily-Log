@@ -187,7 +187,7 @@ export async function buildDailyLogWorkbook(
     const DAYS_OF_WEEK = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
     const dayName = DAYS_OF_WEEK[dObj.getDay()]
     const titleRow = ws.getRow(1)
-    titleRow.height = 28
+    titleRow.height = 22
 
     // Sales section banner (A1:G1)
     ws.mergeCells('A1:G1')
@@ -244,7 +244,7 @@ export async function buildDailyLogWorkbook(
 
     // ── Row 2 — Column headers ────────────────────────────────────────────────
     const hRow = ws.getRow(2)
-    hRow.height = 26
+    hRow.height = 20
 
     const setH = (col: number, val: string, bgArgb = C.navyDark, textArgb = C.white) => {
       const cell = hRow.getCell(col)
@@ -281,7 +281,7 @@ export async function buildDailyLogWorkbook(
       const sale   = daySales[i]
       const exp    = dayExpenses[i]
       const row    = ws.getRow(rowNum)
-      row.height   = 22          // comfortable row height with breathing space
+      row.height   = 16          // compact rows — columns handle the horizontal breathing room
 
       const isEvenRow   = i % 2 === 1
       const salesBg     = isEvenRow ? C.blueLight : C.white
@@ -476,7 +476,7 @@ export async function buildDailyLogWorkbook(
     // ── Totals row (row 33 — after 30 data rows starting at row 3) ──────────
     const totRowNum = 33
     const totRow = ws.getRow(totRowNum)
-    totRow.height = 28
+    totRow.height = 20
 
     // Fill all columns navy
     for (let c = 1; c <= 20; c++) {
@@ -522,7 +522,7 @@ export async function buildDailyLogWorkbook(
 
       // Banner row 35 — "DAY CLOSED" title
       const bannerRow = ws.getRow(35)
-      bannerRow.height = 30
+      bannerRow.height = 24
       ws.mergeCells('A35:G35')
       const bannerCell = bannerRow.getCell(1)
       bannerCell.value = 'DAY CLOSED'
@@ -543,7 +543,7 @@ export async function buildDailyLogWorkbook(
       // Reason row 36
       const reasonText = closureReason || 'Closed / Rest Day'
       const reasonRow = ws.getRow(36)
-      reasonRow.height = 26
+      reasonRow.height = 20
       ws.mergeCells('A36:G36')
       const reasonCell = reasonRow.getCell(1)
       reasonCell.value = `EVENT / REASON: ${reasonText.toUpperCase()}`
@@ -590,7 +590,7 @@ export async function buildDailyLogWorkbook(
     lastSheet.getRow(37).height = 8
   }
   const mTotRow = lastSheet.getRow(mTotRowNum)
-  mTotRow.height = 30
+  mTotRow.height = 22
 
   for (let c = 1; c <= 20; c++) {
     const cell = mTotRow.getCell(c)
