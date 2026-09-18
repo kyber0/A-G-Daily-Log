@@ -92,9 +92,9 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
           <div id="inv-sync-badge" style="display:none;align-items:center;gap:6px;padding:4px 10px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:8px;font-size:11px;font-weight:600;color:#10b981;max-width:320px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">
             <span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex-shrink:0;display:inline-block;"></span>
             <span id="inv-sync-label">Synced</span>
-            <button class="btn btn-ghost btn-sm" id="btn-open-stock-file" title="Reveal in File Explorer" style="padding:2px 6px;font-size:11px;height:auto;line-height:1;margin-left:4px;color:#10b981;">${Icons.folderOpen || '📂'}</button>
+            <button class="btn btn-ghost btn-sm" id="btn-open-stock-file" title="Reveal in File Explorer" style="padding:2px 6px;font-size:11px;height:auto;line-height:1;margin-left:4px;color:#10b981;">${Icons.folderOpen}</button>
           </div>
-          <button class="btn btn-primary btn-sm" id="inv-export-xlsx" data-tooltip="Export Stock Report to Excel (.xlsx)" style="font-size:12px;gap:6px;display:flex;align-items:center;">${Icons.fileSheet || '📊'} Export XLSX</button>
+          <button class="btn btn-primary btn-sm" id="inv-export-xlsx" data-tooltip="Export Stock Report to Excel (.xlsx)" style="font-size:12px;gap:6px;display:flex;align-items:center;">${Icons.fileSheet} Export XLSX</button>
           <button class="btn btn-ghost btn-icon" id="inv-refresh" data-tooltip="Refresh">${Icons.refreshCw}</button>
         </div>
       </div>

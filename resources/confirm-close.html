@@ -9,17 +9,34 @@
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── Light mode (default) ─────────────────────────────────────────── */
     :root {
+      --clr-bg:          #f8fafc;
+      --clr-surface:     #ffffff;
+      --clr-surface-2:   #f1f5f9;
+      --clr-border:      #e2e8f0;
+      --clr-primary:     #0d9488;
+      --clr-text:        #0f172a;
+      --clr-text-muted:  #475569;
+      --clr-error:       #ef4444;
+      --clr-error-bg:    rgba(239, 68, 68, 0.08);
+      --clr-error-border:rgba(239, 68, 68, 0.22);
+      --shadow:          0 8px 32px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    /* ── Dark mode ────────────────────────────────────────────────────── */
+    [data-theme="dark"] {
       --clr-bg:          #0f1115;
       --clr-surface:     #171a21;
       --clr-surface-2:   #1f242e;
       --clr-border:      #2a303d;
       --clr-primary:     #14b8a6;
-      --clr-primary-dim: #0d9488;
       --clr-text:        #f1f5f9;
       --clr-text-muted:  #94a3b8;
       --clr-error:       #f87171;
-      --clr-error-bg:    rgba(248, 113, 113, 0.12);
+      --clr-error-bg:    rgba(248, 113, 113, 0.10);
+      --clr-error-border:rgba(248, 113, 113, 0.25);
+      --shadow:          0 16px 48px rgba(0, 0, 0, 0.60), 0 1px 4px rgba(0, 0, 0, 0.4);
     }
 
     html, body {
@@ -35,16 +52,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0;
     }
 
+    /* ── Card ─────────────────────────────────────────────────────────── */
     .card {
       width: 100%;
       height: 100%;
       background: var(--clr-surface);
       border: 1px solid var(--clr-border);
       border-radius: 16px;
-      box-shadow: 0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      box-shadow: var(--shadow);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -52,93 +69,110 @@
     }
 
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(12px) scale(0.97); }
+      from { opacity: 0; transform: translateY(10px) scale(0.97); }
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .icon-ring {
-      width: 52px; height: 52px;
-      border-radius: 50%;
-      background: var(--clr-error-bg);
-      border: 1px solid rgba(248, 113, 113, 0.25);
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 16px;
-    }
-
-    .icon-ring svg {
-      color: var(--clr-error);
-    }
-
+    /* ── Body ─────────────────────────────────────────────────────────── */
     .body {
       flex: 1;
-      padding: 28px 28px 20px;
+      padding: 32px 28px 20px;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 0;
+    }
+
+    /* Icon ring — flat, no glow */
+    .icon-ring {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--clr-error-bg);
+      border: 1px solid var(--clr-error-border);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px;
+      flex-shrink: 0;
+    }
+
+    .icon-ring svg {
+      width: 24px; height: 24px;
+      color: var(--clr-error);
+      stroke: var(--clr-error);
     }
 
     h2 {
       font-size: 17px;
       font-weight: 800;
       color: var(--clr-text);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       letter-spacing: -0.3px;
+      line-height: 1.2;
     }
 
     p {
       font-size: 13px;
       color: var(--clr-text-muted);
-      line-height: 1.6;
+      line-height: 1.65;
     }
 
+    /* ── Footer ───────────────────────────────────────────────────────── */
     .footer {
-      padding: 16px 28px;
+      padding: 16px 24px 20px;
       display: flex;
       gap: 10px;
       border-top: 1px solid var(--clr-border);
-      background: rgba(255,255,255,0.02);
     }
 
     button {
       flex: 1;
-      height: 40px;
-      border: none;
+      height: 42px;
       border-radius: 10px;
       font-family: inherit;
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
       outline: none;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
+    /* Cancel / Stay — subtle ghost */
     #btn-cancel {
-      background: var(--clr-surface-2, #1f242e);
-      border: 1px solid var(--clr-border);
+      background: var(--clr-surface-2);
+      border-color: var(--clr-border);
       color: var(--clr-text-muted);
     }
     #btn-cancel:hover {
-      background: #2a303d;
       color: var(--clr-text);
+      border-color: var(--clr-text-muted);
     }
     #btn-cancel:active {
       transform: scale(0.97);
     }
 
+    /* Confirm / Close App — flat red, no gradient */
     #btn-confirm {
-      background: linear-gradient(135deg, #f87171, #ef4444);
+      background: var(--clr-error);
+      border-color: transparent;
       color: #fff;
-      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
     }
     #btn-confirm:hover {
-      background: linear-gradient(135deg, #fb8585, #f55252);
-      box-shadow: 0 6px 18px rgba(239, 68, 68, 0.45);
-      transform: translateY(-1px);
+      filter: brightness(1.08);
     }
     #btn-confirm:active {
-      transform: scale(0.97) translateY(0);
+      transform: scale(0.97);
+      filter: brightness(0.95);
+    }
+
+    [data-theme="dark"] #btn-confirm {
+      /* Slightly muted red on dark so it isn't too harsh */
+      background: #dc2626;
     }
   </style>
 </head>
@@ -146,8 +180,8 @@
   <div class="card">
     <div class="body">
       <div class="icon-ring">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.2"
+        <!-- Log-out arrow icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
              stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
           <polyline points="16 17 21 12 16 7"/>
@@ -164,6 +198,13 @@
   </div>
 
   <script>
+    // ── Apply theme from URL query param passed by main/index.ts ────────
+    ;(function () {
+      const params = new URLSearchParams(window.location.search)
+      const theme = params.get('theme') || 'light'
+      document.documentElement.setAttribute('data-theme', theme)
+    })()
+
     document.getElementById('btn-confirm').addEventListener('click', () => {
       window.electronConfirmClose.confirm()
     })

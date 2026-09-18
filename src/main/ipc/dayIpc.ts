@@ -15,6 +15,8 @@ import {
   getCachedContainerTypes,
   getCachedWaterTypes,
   hasPendingSyncForDate,
+  getDayClosure,
+  setDayClosure,
 } from '../store/localDb'
 
 export function registerDayIpc(): void {
@@ -234,16 +236,38 @@ export function registerDayIpc(): void {
     }
   })
 
-  ipcMain.handle('day:markClosed', async (_event, date: string, _reason: string): Promise<IpcResult<DayTarget>> => {
+  ipcMain.handle('day:markClosed', async (_event, date: string, reason: string): Promise<IpcResult<DayTarget>> => {
     const d = new Date(date + 'T00:00:00')
     const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
     const mon = MONTHS[d.getMonth()]
     const day = String(d.getDate()).padStart(2, '0')
+    // Persist the closure so it survives restarts and overrides Sunday default
+    try { setDayClosure(date, true, reason || 'Closed') } catch (e) {
+      console.warn('[day:markClosed] Could not persist closure:', e)
+    }
     return { ok: true, data: { filePath: `supabase://${date}`, sheetName: `${mon}${day}` } }
   })
 
-  ipcMain.handle('day:getStatus', async (_event, _date: string): Promise<IpcResult<{ isClosed: boolean; reason: string }>> => {
-    return { ok: true, data: { isClosed: false, reason: '' } }
+  ipcMain.handle('day:getStatus', async (_event, date: string): Promise<IpcResult<{ isClosed: boolean; reason: string }>> => {
+    try {
+      // 1. Check SQLite for any explicit closure/reopen record
+      const record = getDayClosure(date)
+      if (record !== null) {
+        // An explicit decision was stored — respect it (covers Sunday reopens too)
+        return { ok: true, data: { isClosed: record.isClosed, reason: record.reason } }
+      }
+      // 2. No stored record — apply the Sunday rule automatically
+      const dayOfWeek = new Date(date + 'T00:00:00').getDay()
+      if (dayOfWeek === 0) {
+        // Sunday: closed by default; don't persist so the user can still reopen
+        return { ok: true, data: { isClosed: true, reason: 'Sunday' } }
+      }
+      // Regular weekday with no record — open
+      return { ok: true, data: { isClosed: false, reason: '' } }
+    } catch (e) {
+      console.warn('[day:getStatus] Error reading closure, defaulting to open:', e)
+      return { ok: true, data: { isClosed: false, reason: '' } }
+    }
   })
 
   ipcMain.handle('day:unmarkClosed', async (_event, date: string): Promise<IpcResult<DayTarget>> => {
@@ -251,6 +275,10 @@ export function registerDayIpc(): void {
     const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
     const mon = MONTHS[d.getMonth()]
     const day = String(d.getDate()).padStart(2, '0')
+    // Persist the explicit reopen so it overrides the Sunday auto-close rule next time
+    try { setDayClosure(date, false, '') } catch (e) {
+      console.warn('[day:unmarkClosed] Could not persist reopen:', e)
+    }
     return { ok: true, data: { filePath: `supabase://${date}`, sheetName: `${mon}${day}` } }
   })
 }

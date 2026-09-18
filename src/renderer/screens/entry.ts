@@ -140,12 +140,12 @@ export function renderEntryScreen(
         <div class="row-counter-wrap" style="display:flex;align-items:center;gap:6px;">
           <div class="row-counter" id="row-counter">0 / 30 rows</div>
           <!-- 3-dots kebab menu -->
-          <div class="day-menu-wrap" id="day-menu-wrap" style="position:relative;">
+          <div class="day-menu-wrap" id="day-menu-wrap" style="position:relative; z-index:110;">
             <button class="btn btn-ghost btn-icon" id="btn-day-menu" aria-label="Day options" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:8px;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
             </button>
             <div id="day-menu-dropdown" class="day-menu-dropdown hidden" style="
-              position:absolute;right:0;top:calc(100% + 4px);z-index:999;
+              position:absolute;right:0;top:calc(100% + 4px);z-index:9999;
               background:var(--clr-surface);border:1px solid var(--clr-border);
               border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.25);
               min-width:200px;padding:6px;
@@ -257,17 +257,17 @@ export function renderEntryScreen(
         </aside>
 
         <!-- Right: table -->
-        <div class="entry-main" style="position:relative;">
+        <div class="entry-main" style="position:relative; z-index:1;">
           
-          <!-- Closed day overlay — shown over the table when day is marked closed -->
+          <!-- Closed day overlay — shown when today's day is marked closed (not a past day) -->
           <div id="closed-table-overlay" class="closed-table-overlay hidden">
             <div class="closed-table-overlay__inner">
               <span id="overlay-sunday-indicator" class="sunday-indicator hidden" style="margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px;">${Icons.calendar} Sunday</span>
-              <div style="width:56px; height:56px; border-radius:50%; background:var(--clr-error-bg); color:var(--clr-error); display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto;">
+              <div style="width:56px; height:56px; border-radius:50%; background:var(--clr-error-bg); color:var(--clr-error); display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto; border:1px solid rgba(239,68,68,0.18);">
                 ${Icons.lock}
               </div>
-              <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--clr-error); opacity:0.7; margin-bottom:8px;">Day Closed</p>
-              <strong id="closed-overlay-reason" style="font-size:22px; font-weight:700; color:var(--clr-text); margin-bottom: 20px; display: block;">Closed</strong>
+              <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:var(--clr-error); opacity:0.75; margin-bottom:8px;">Day Closed</p>
+              <strong id="closed-overlay-reason" style="font-size:21px; font-weight:700; color:var(--clr-text); margin-bottom: 12px; display: block;">Closed</strong>
               <p style="color:var(--clr-text-muted); margin-bottom: 24px; font-size:13px;">No new sales can be added. You can reopen this day if needed.</p>
               <button id="btn-reopen-day" class="btn btn-secondary btn-lg" style="margin: 0 auto; display: flex; align-items: center; gap: 8px;">
                 ${Icons.checkCircle} Reopen Day
@@ -275,15 +275,45 @@ export function renderEntryScreen(
             </div>
           </div>
 
-          <!-- Past day overlay — shown when viewing a past day -->
-          <div id="past-day-overlay" class="closed-table-overlay hidden" style="background: rgba(15, 23, 42, 0.1); backdrop-filter: blur(12px);">
-            <div class="closed-table-overlay__inner" style="border-top: 4px solid var(--clr-primary);">
-              <span style="font-size:48px; margin-bottom: 12px; display: block;">⏳</span>
-              <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--clr-primary); opacity:0.8; margin-bottom:8px;">Past Day</p>
-              <strong style="font-size:22px; font-weight:700; color:var(--clr-text); margin-bottom: 20px; display: block;">Viewing History</strong>
+          <!-- Past day overlay — shown when viewing a past day that is NOT closed -->
+          <div id="past-day-overlay" class="closed-table-overlay hidden">
+            <div class="closed-table-overlay__inner" style="border-top: 3px solid var(--clr-primary);">
+              <div style="width:52px; height:52px; border-radius:50%; background:var(--clr-primary-glow,rgba(13,148,136,0.12)); border:1px solid rgba(13,148,136,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto; color:var(--clr-primary);">
+                ${Icons.history}
+              </div>
+              <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:var(--clr-primary); opacity:0.85; margin-bottom:8px;">Past Day</p>
+              <strong style="font-size:21px; font-weight:700; color:var(--clr-text); margin-bottom: 12px; display: block;">Viewing History</strong>
               <p style="color:var(--clr-text-muted); margin-bottom: 24px; font-size:13px;">This day is in the past. It is locked to prevent accidental changes.</p>
               <button id="btn-unlock-past" class="btn btn-primary btn-lg" style="margin: 0 auto; display: flex; align-items: center; gap: 8px;">
                 ${Icons.pencil} Unlock for Editing
+              </button>
+            </div>
+          </div>
+
+          <!-- Combined past-closed overlay — shown when a past day is ALSO marked closed -->
+          <div id="past-closed-overlay" class="closed-table-overlay hidden">
+            <div class="closed-table-overlay__inner" style="border-top: 3px solid var(--clr-error);">
+              <!-- Badge row -->
+              <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:18px;">
+                <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:var(--clr-surface-2);border:1px solid var(--clr-border);color:var(--clr-text-muted);">
+                  ${Icons.history} Past Day
+                </span>
+                <span id="past-closed-reason-badge" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:var(--clr-error-bg);border:1px solid rgba(239,68,68,0.22);color:var(--clr-error);">
+                  ${Icons.lock} Closed
+                </span>
+                <span id="past-closed-sunday-badge" class="sunday-indicator hidden" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;">
+                  ${Icons.calendar} Sunday
+                </span>
+              </div>
+              <!-- Icon -->
+              <div style="width:52px; height:52px; border-radius:50%; background:var(--clr-error-bg); border:1px solid rgba(239,68,68,0.18); color:var(--clr-error); display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto;">
+                ${Icons.lock}
+              </div>
+              <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:var(--clr-error); opacity:0.75; margin-bottom:8px;">Closed Past Day</p>
+              <strong id="past-closed-overlay-reason" style="font-size:21px; font-weight:700; color:var(--clr-text); margin-bottom:12px; display:block;">Closed</strong>
+              <p style="color:var(--clr-text-muted); margin-bottom: 24px; font-size:13px;">This log is from a past date and was closed. It is protected from unintended changes.</p>
+              <button id="btn-unlock-reopen-day" class="btn btn-danger btn-lg" style="margin: 0 auto; display: flex; align-items: center; gap: 8px;">
+                ${Icons.pencil} Unlock &amp; Reopen Day
               </button>
             </div>
           </div>
@@ -701,96 +731,135 @@ export function renderEntryScreen(
 
   // ── Update the closed-day banner and button state ─────────────────────────
   function updateClosedBanner(): void {
-    const banner    = document.getElementById('closed-day-banner')!
-    const btn       = document.getElementById('btn-mark-closed')!
-    const reasonEl  = document.getElementById('closed-day-reason')!
-    const sunEl     = document.getElementById('sunday-indicator')!
-    const overlay   = document.getElementById('closed-table-overlay')!
-    const overlayReason = document.getElementById('closed-overlay-reason')!
-    const addBtn    = document.getElementById('btn-add') as HTMLButtonElement
-    const overlaySun = document.getElementById('overlay-sunday-indicator')
+    const banner         = document.getElementById('closed-day-banner')!
+    const btn            = document.getElementById('btn-mark-closed')!
+    const reasonEl       = document.getElementById('closed-day-reason')!
+    const sunEl          = document.getElementById('sunday-indicator')!
+    const overlay        = document.getElementById('closed-table-overlay')!
+    const overlayReason  = document.getElementById('closed-overlay-reason')!
+    const pastOverlay    = document.getElementById('past-day-overlay')!
+    const pastClosedOverlay = document.getElementById('past-closed-overlay')!
+    const addBtn         = document.getElementById('btn-add') as HTMLButtonElement
+    const overlaySun     = document.getElementById('overlay-sunday-indicator')
 
     const d = new Date(currentDate + 'T00:00:00')
     const isSunday = d.getDay() === 0
 
-    // Always show Sunday pill if applicable
+    // ── Sunday indicator in top banner ──────────────────────────────────
     sunEl.classList.toggle('hidden', !isSunday)
     if (overlaySun) {
       overlaySun.classList.toggle('hidden', !isSunday)
-      if (isSunday) {
-        overlaySun.style.display = 'inline-flex'
-      } else {
-        overlaySun.style.display = 'none'
-      }
+      overlaySun.style.display = isSunday ? 'inline-flex' : 'none'
     }
 
-    const pastOverlay = document.getElementById('past-day-overlay')!
+    // ── Hide all overlays first ──────────────────────────────────────────
+    overlay.classList.add('hidden')
     pastOverlay.classList.add('hidden')
+    pastClosedOverlay.classList.add('hidden')
 
-    if (isClosed) {
-      // Show banner
-      banner.classList.remove('hidden')
-      const displayReason = !closureReason || closureReason.toLowerCase() === 'closed'
+    // Helper: format the closure reason for display
+    const formatReason = (r: string) =>
+      !r || r.toLowerCase() === 'closed'
         ? 'Closed'
-        : closureReason.toLowerCase().startsWith('closed')
-          ? closureReason
-          : `Closed — ${closureReason}`
+        : r.toLowerCase().startsWith('closed')
+          ? r
+          : `Closed — ${r}`
+
+    const displayReason = formatReason(closureReason)
+
+    if (isClosed && isPastDayLocked) {
+      // ── STATE 3: Past Day & Closed → Combined overlay ─────────────────
+      banner.classList.remove('hidden')
       reasonEl.textContent = displayReason
 
-      // Show table overlay (blocks table area)
+      // Populate combined overlay
+      const pcReason = document.getElementById('past-closed-overlay-reason')
+      if (pcReason) pcReason.textContent = displayReason
+      const pcBadge = document.getElementById('past-closed-reason-badge')
+      if (pcBadge) pcBadge.innerHTML = `${Icons.lock} ${displayReason}`
+      const pcSunBadge = document.getElementById('past-closed-sunday-badge')
+      if (pcSunBadge) {
+        pcSunBadge.classList.toggle('hidden', !isSunday)
+        pcSunBadge.style.display = isSunday ? 'inline-flex' : 'none'
+      }
+
+      pastClosedOverlay.classList.remove('hidden')
+
+      // Disable Add button
+      addBtn.disabled = true
+      addBtn.style.opacity = '0.4'
+      addBtn.style.cursor = 'not-allowed'
+
+      // Menu item → show as reopen
+      btn.innerHTML = `${Icons.checkCircle} Reopen Day`
+      btn.className = 'day-menu-item'
+
+      // Wire the combined "Unlock & Reopen" button
+      const unlockReopenBtn = document.getElementById('btn-unlock-reopen-day')
+      if (unlockReopenBtn) {
+        unlockReopenBtn.onclick = async () => {
+          const result = await window.api.unmarkDayClosed(currentDate)
+          if (!result.ok) {
+            showToast(result.error ?? 'Failed to reopen day', 'error')
+            return
+          }
+          isClosed = false
+          closureReason = ''
+          isPastDayLocked = false   // also clear the past-day lock
+          updateClosedBanner()
+          window.api.appendLog('REOPEN_DAY', `Unlocked & reopened past day ${currentDate}`)
+          showToast('Day unlocked and reopened — sales can be edited', 'success')
+        }
+      }
+
+    } else if (isClosed) {
+      // ── STATE 1: Today (or future date) is closed ────────────────────
+      banner.classList.remove('hidden')
+      reasonEl.textContent = displayReason
+
       overlay.classList.remove('hidden')
       overlayReason.textContent = displayReason
 
-      // Disable Add button
       addBtn.disabled = true
       addBtn.style.opacity = '0.4'
       addBtn.style.cursor = 'not-allowed'
 
-      // Update topbar button
       btn.innerHTML = `${Icons.checkCircle} Reopen Day`
-      btn.className = 'btn btn-sm btn-secondary'
+      btn.className = 'day-menu-item'
 
-      // Wire the reopen button inside the overlay
+      // Wire reopen button inside overlay
       const reopenBtn = document.getElementById('btn-reopen-day')
       if (reopenBtn) {
-        reopenBtn.onclick = () => {
-          handleToggleClosedDay()
-        }
+        reopenBtn.onclick = () => { handleToggleClosedDay() }
       }
+
     } else if (isPastDayLocked) {
-      // Show past day overlay instead of closed overlay
+      // ── STATE 2: Past day, NOT closed ────────────────────────────────
       banner.classList.toggle('hidden', !isSunday)
       reasonEl.textContent = ''
-      overlay.classList.add('hidden')
       pastOverlay.classList.remove('hidden')
 
-      // Disable Add button
       addBtn.disabled = true
       addBtn.style.opacity = '0.4'
       addBtn.style.cursor = 'not-allowed'
 
-      // Update topbar button
       btn.innerHTML = `${Icons.xCircle} Mark as Closed`
-      btn.className = 'btn btn-sm'
+      btn.className = 'day-menu-item day-menu-item--danger'
+
     } else {
-      // Hide banner (unless Sunday)
+      // ── STATE 0: Normal open day ─────────────────────────────────────
       banner.classList.toggle('hidden', !isSunday)
       reasonEl.textContent = ''
 
-      // Hide all overlays
-      overlay.classList.add('hidden')
-      pastOverlay.classList.add('hidden')
-
-      // Re-enable Add button
       addBtn.disabled = false
       addBtn.style.opacity = ''
       addBtn.style.cursor = ''
 
-      // Update topbar button
       btn.innerHTML = `${Icons.xCircle} Mark as Closed`
-      btn.className = 'btn btn-sm'
+      btn.className = 'day-menu-item day-menu-item--danger'
     }
   }
+
 
   // ── Container dropdown refresh (after settings change) ────────────────────
   function refreshContainerDropdown(): void {

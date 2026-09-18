@@ -48,6 +48,7 @@ import { registerUpdateIpc, initAutoUpdater } from './ipc/updateIpc'
 import { startSyncEngine, stopSyncEngine, registerConnectivityIpc, drainQueue } from './store/syncEngine'
 import { runInitialSync } from './store/initialSync'
 import { closeDatabase } from './store/localDb'
+import { readConfig } from './store/config'
 
 // Register all IPC handlers before any window opens
 registerSettingsIpc()
@@ -121,7 +122,11 @@ function createWindow(): void {
       },
     })
 
-    dialogWin.loadFile(path.join(__dirname, '../../resources/confirm-close.html'))
+    dialogWin.loadFile(
+      path.join(__dirname, '../../resources/confirm-close.html'),
+      { query: { theme: readConfig().theme || 'light' } }
+    )
+
 
     function cleanup() {
       ipcMain.removeListener('confirm-close:confirm', onConfirm)

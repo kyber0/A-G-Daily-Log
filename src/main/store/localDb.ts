@@ -219,6 +219,16 @@ function initSchema(db: Database.Database): void {
       table_name TEXT PRIMARY KEY,
       last_synced_at TEXT
     );
+
+    -- ── Day Closure Cache ─────────────────────────────────────────────────────
+    -- Persists explicit mark-as-closed / reopen decisions per date so the app
+    -- can auto-close Sundays by default while still respecting manual reopens.
+    CREATE TABLE IF NOT EXISTS day_closure_cache (
+      date       TEXT PRIMARY KEY,   -- YYYY-MM-DD
+      is_closed  INTEGER NOT NULL DEFAULT 1,  -- 1 = closed, 0 = explicitly opened
+      reason     TEXT,
+      updated_at TEXT
+    );
   `)
 }
 
@@ -650,4 +660,46 @@ export function getAuditLogs(logType: 'water' | 'item', monthPrefix: string): Au
     ORDER BY timestamp DESC
     LIMIT 2000
   `).all(logType, `${monthPrefix}%`) as AuditLogEntry[]
+}
+
+// ── Day Closure Cache Helpers ─────────────────────────────────────────────────
+
+export interface DayClosureRecord {
+  date: string
+  isClosed: boolean
+  reason: string
+}
+
+/**
+ * Persist a closure decision for a specific date.
+ * Call this whenever a day is marked closed OR explicitly reopened.
+ */
+export function setDayClosure(date: string, isClosed: boolean, reason: string): void {
+  const db = getLocalDb()
+  db.prepare(`
+    INSERT INTO day_closure_cache (date, is_closed, reason, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET
+      is_closed  = excluded.is_closed,
+      reason     = excluded.reason,
+      updated_at = excluded.updated_at
+  `).run(date, isClosed ? 1 : 0, reason, new Date().toISOString())
+}
+
+/**
+ * Read the stored closure record for a date.
+ * Returns null if no explicit record exists (caller should apply Sunday rule).
+ */
+export function getDayClosure(date: string): DayClosureRecord | null {
+  const db = getLocalDb()
+  const row = db.prepare(`
+    SELECT date, is_closed, reason FROM day_closure_cache WHERE date = ?
+  `).get(date) as { date: string; is_closed: number; reason: string | null } | undefined
+
+  if (!row) return null
+  return {
+    date: row.date,
+    isClosed: row.is_closed === 1,
+    reason: row.reason || ''
+  }
 }
