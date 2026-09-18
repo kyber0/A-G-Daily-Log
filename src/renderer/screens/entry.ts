@@ -353,7 +353,7 @@ export function renderEntryScreen(
               </div>
             </div>
             <div id="sync-status" style="font-size:12px;color:var(--clr-text-muted);display:flex;align-items:center;gap:6px;">
-              <span style="display:inline-flex;align-items:center;gap:5px;color:var(--clr-text-muted);">${Icons.check} Auto-saved</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;color:var(--clr-text-muted);">${Icons.check} Synced</span>
             </div>
           </div>
         </div>
@@ -1240,11 +1240,11 @@ export function renderEntryScreen(
     const el = document.getElementById('sync-status')
     if (!el) return
     if (status === 'saving') {
-      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;color:var(--clr-primary);"><span class="spinner" style="width:12px;height:12px;border-width:2px;"></span> Saving...</span>`
+      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;color:var(--clr-primary);"><span class="spinner" style="width:12px;height:12px;border-width:2px;"></span> Syncing...</span>`
     } else if (status === 'saved') {
-      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;color:#10b981;">${Icons.check} Auto-saved</span>`
+      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;color:var(--clr-text-muted);">${Icons.check} Synced</span>`
     } else if (status === 'error') {
-      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;color:#ef4444;" title="${errorMsg || ''}">${Icons.alertTriangle} Save failed</span>`
+      el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;color:var(--clr-error);" title="${errorMsg || ''}">${Icons.alertTriangle} Sync failed</span>`
     }
   }
 
