@@ -1,6 +1,6 @@
 {
   "name": "ag-daily-log",
-  "version": "2.3.7",
+  "version": "2.3.8",
   "description": "A&G Water Refill Daily Log App",
   "main": "out/main/index.js",
   "scripts": {
@@ -54,7 +54,8 @@
       {
         "provider": "github",
         "owner": "kyber0",
-        "repo": "A-G-Daily-Log"
+        "repo": "A-G-Daily-Log",
+        "releaseType": "release"
       }
     ],
     "npmRebuild": false,
