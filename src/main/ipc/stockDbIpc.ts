@@ -1,4 +1,4 @@
-﻿import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import type {
   IpcResult, StockDB, StockItem, StockMovement,
@@ -10,7 +10,8 @@ import {
   getLocalDb, enqueueWrite,
   getCachedItems, getCachedCategories, getCachedBuyers,
   getCachedStockMovements, getCachedRestockOrders,
-  cacheItems, cacheCategories, cacheBuyers, cacheStockMovements, cacheRestockOrders
+  cacheItems, cacheCategories, cacheBuyers, cacheStockMovements, cacheRestockOrders,
+  appendAuditLog
 } from '../store/localDb'
 
 /**
@@ -20,6 +21,25 @@ import {
  */
 async function getSb() {
   return withSupabaseRetry(async (sb) => sb)
+}
+
+function recordItemAudit(action: string, details: string): void {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const tsFormatted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+  const tsIso = now.toISOString()
+
+  try {
+    appendAuditLog({ log_type: 'item', action, details, timestamp: tsFormatted })
+  } catch (e) {
+    console.error('[stockDb:audit] SQLite write failed:', e)
+  }
+
+  withSupabaseRetry(async (sb) => sb.from('audit_logs').insert({
+    log_type: 'item', action, details, timestamp: tsIso
+  })).then(res => {
+    if (res && 'error' in res && res.error) console.warn('[stockDb:audit] Supabase insert failed (non-fatal):', (res.error as any).message)
+  }).catch(() => {})
 }
 export function registerStockDbIpc(): void {
   // â”€â”€ Read Full Stock DB from Supabase (with offline fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -123,7 +143,7 @@ export function registerStockDbIpc(): void {
         const catName = (i.categories as any)?.name || 'CONTAINERS'
         return {
           id: i.id,
-          itemLabel: `${i.code || i.id.substring(0, 8)} Â· ${i.name}`,
+          itemLabel: `${i.code || i.id.substring(0, 8)} - ${i.name}`,
           name: i.name,
           code: i.code || undefined,
           categoryId: i.category_id || catName,
@@ -174,7 +194,7 @@ export function registerStockDbIpc(): void {
 
       const movements: StockMovement[] = allMovements.map(m => {
         const itm = m.items || {}
-        const itmLabel = `${itm.code || m.item_id?.substring(0, 8) || ''} Â· ${itm.name || 'Item'}`
+        const itmLabel = `${itm.code || m.item_id?.substring(0, 8) || ''} - ${itm.name || 'Item'}`
         return {
           id: m.id,
           itemId: m.item_id,
@@ -363,24 +383,26 @@ export function registerStockDbIpc(): void {
         const { id: _id, category_id: _catId, category_name: _catName, ...syncPayload } = cacheRow
         enqueueWrite('items', 'insert', syncPayload)
 
+        const resultItem = {
+          id: tempId,
+          itemLabel: `${cacheRow.code || tempId.substring(0, 8)} - ${cacheRow.name}`,
+          name: cacheRow.name,
+          code: cacheRow.code || undefined,
+          categoryId: categoryName,
+          packing: cacheRow.packing || undefined,
+          dealerPrice: cacheRow.dealer_price,
+          srp: cacheRow.srp,
+          batchNote: cacheRow.batch_note || undefined,
+          batchDate: cacheRow.batch_date || undefined,
+          lowStockThreshold: cacheRow.low_stock_threshold ?? undefined,
+          isArchived: false,
+          createdAt: now,
+          updatedAt: now
+        }
+        recordItemAudit('ITEM_CATALOG_ADD', `Added product to catalog: ${resultItem.name}${resultItem.code ? ` (${resultItem.code})` : ''} | SRP: ₱${resultItem.srp} | Cat: ${categoryName}`)
         return {
           ok: true,
-          data: {
-            id: tempId,
-            itemLabel: `${cacheRow.code || tempId.substring(0, 8)} Â· ${cacheRow.name}`,
-            name: cacheRow.name,
-            code: cacheRow.code || undefined,
-            categoryId: categoryName,
-            packing: cacheRow.packing || undefined,
-            dealerPrice: cacheRow.dealer_price,
-            srp: cacheRow.srp,
-            batchNote: cacheRow.batch_note || undefined,
-            batchDate: cacheRow.batch_date || undefined,
-            lowStockThreshold: cacheRow.low_stock_threshold ?? undefined,
-            isArchived: false,
-            createdAt: now,
-            updatedAt: now
-          }
+          data: resultItem
         }
       }
 
@@ -439,7 +461,7 @@ export function registerStockDbIpc(): void {
       const catName = (data.categories as any)?.name || 'CONTAINERS'
       const item: StockItem = {
         id: data.id,
-        itemLabel: `${data.code || data.id.substring(0, 8)} Â· ${data.name}`,
+        itemLabel: `${data.code || data.id.substring(0, 8)} - ${data.name}`,
         name: data.name,
         code: data.code || undefined,
         categoryId: data.category_id || catName,
@@ -454,6 +476,7 @@ export function registerStockDbIpc(): void {
         updatedAt: data.updated_at
       }
 
+      recordItemAudit('ITEM_CATALOG_ADD', `Added product to catalog: ${item.name}${item.code ? ` (${item.code})` : ''} | SRP: ₱${item.srp} | Cat: ${catName}`)
       return { ok: true, data: item }
     } catch (e: unknown) {
       console.error('[stockDb:addItem] Error:', e)
@@ -543,7 +566,7 @@ export function registerStockDbIpc(): void {
       const catName = (data.categories as any)?.name || 'CONTAINERS'
       const item: StockItem = {
         id: data.id,
-        itemLabel: `${data.code || data.id.substring(0, 8)} Â· ${data.name}`,
+        itemLabel: `${data.code || data.id.substring(0, 8)} - ${data.name}`,
         name: data.name,
         code: data.code || undefined,
         categoryId: data.category_id || catName,
@@ -558,6 +581,7 @@ export function registerStockDbIpc(): void {
         updatedAt: data.updated_at
       }
 
+      recordItemAudit('ITEM_CATALOG_EDIT', `Updated product: ${item.name}${item.code ? ` (${item.code})` : ''} | SRP: ₱${item.srp}`)
       return { ok: true, data: item }
     } catch (e: unknown) {
       console.error('[stockDb:updateItem] Error:', e)
@@ -583,6 +607,13 @@ export function registerStockDbIpc(): void {
 
   ipcMain.handle('stockDb:deleteItem', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
+      let itemName = id
+      try {
+        const db = getLocalDb()
+        const cached = db.prepare('SELECT name, code FROM items_cache WHERE id = ?').get(id) as any
+        if (cached) itemName = `${cached.name}${cached.code ? ` (${cached.code})` : ''}`
+      } catch {}
+
       const sb = await getSb()
       const { error } = await sb.from('items').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
@@ -590,6 +621,7 @@ export function registerStockDbIpc(): void {
         const db = getLocalDb()
         db.prepare('DELETE FROM items_cache WHERE id = ?').run(id)
       } catch {}
+      recordItemAudit('ITEM_CATALOG_DELETE', `Removed product from catalog: ${itemName}`)
       return { ok: true, data: undefined }
     } catch (e: unknown) {
       return { ok: false, error: String(e) }
@@ -653,6 +685,55 @@ export function registerStockDbIpc(): void {
         note: data.note || undefined
       }
 
+      // Cache movement in SQLite
+      try {
+        const db = getLocalDb()
+        db.prepare(`
+          INSERT OR REPLACE INTO stock_movements_cache
+            (id, item_id, item_name, item_code, direction, quantity, buyer_id, buyer_name, date, source, source_id, note, synced_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          data.id, data.item_id, null, null,
+          data.direction, data.quantity, data.buyer_id, mov.buyerName || null,
+          data.date, data.source, data.source_id, data.note, new Date().toISOString()
+        )
+      } catch (cacheErr) {
+        console.warn('[stockDb:addMovement] Cache insert warn:', cacheErr)
+      }
+
+      // Record audit log entry
+      try {
+        const cleanLabel = (mov.itemLabel || String(itemId))
+          .replace(/Â·/g, ' - ')
+          .replace(/·/g, ' - ')
+          .replace(/\s+-\s+/g, ' - ')
+          .trim()
+        const qty = Number(data.quantity) || 0
+        const dateStr = data.date || ''
+        const noteStr = data.note ? ` (${data.note})` : ''
+
+        if (data.direction === 'out') {
+          if (data.source === 'wholesale_dispatch') {
+            recordItemAudit(
+              'STOCK_DISPATCH',
+              `Dispatched: ${qty}x ${cleanLabel} to ${mov.buyerName || 'Buyer'} on ${dateStr}${noteStr}`
+            )
+          } else {
+            recordItemAudit(
+              'STOCK_OUT',
+              `Stock OUT: ${qty}x ${cleanLabel}${mov.buyerName ? ` to ${mov.buyerName}` : ''} [${data.source || 'sales'}] on ${dateStr}${noteStr}`
+            )
+          }
+        } else {
+          recordItemAudit(
+            'STOCK_IN',
+            `Stock IN: ${qty}x ${cleanLabel} [${data.source || 'restock'}] on ${dateStr}${noteStr}`
+          )
+        }
+      } catch (auditErr) {
+        console.warn('[stockDb:addMovement] Audit logging error:', auditErr)
+      }
+
       return { ok: true, data: result }
     } catch (e: unknown) {
       console.error('[stockDb:addMovement] Error:', e)
@@ -697,6 +778,10 @@ export function registerStockDbIpc(): void {
         note: data.note || undefined
       }
 
+      recordItemAudit(
+        'STOCK_MOVEMENT_EDIT',
+        `Updated movement (ID: ${id}): ${result.direction.toUpperCase()} ${result.quantity}x on ${result.date}`
+      )
       return { ok: true, data: result }
     } catch (e: unknown) {
       return { ok: false, error: String(e) }
@@ -706,9 +791,18 @@ export function registerStockDbIpc(): void {
   // â”€â”€ Delete Movement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle('stockDb:deleteMovement', async (_e, id: string): Promise<IpcResult<void>> => {
     try {
+      let movDesc = id
+      try {
+        const db = getLocalDb()
+        const cached = db.prepare('SELECT direction, quantity, date FROM stock_movements_cache WHERE id = ?').get(id) as any
+        if (cached) movDesc = `${(cached.direction || '').toUpperCase()} ${cached.quantity}x on ${cached.date}`
+        db.prepare('DELETE FROM stock_movements_cache WHERE id = ?').run(id)
+      } catch {}
+
       const sb = await getSb()
       const { error } = await sb.from('stock_movements').delete().eq('id', id)
       if (error) return { ok: false, error: error.message }
+      recordItemAudit('STOCK_MOVEMENT_DELETE', `Deleted stock movement: ${movDesc}`)
       return { ok: true, data: undefined }
     } catch (e: unknown) {
       return { ok: false, error: String(e) }
@@ -1022,7 +1116,7 @@ function buildStockDbFromCache(): IpcResult<StockDB & { itemRows: StockItemRow[]
 
     const items: StockItem[] = rawItems.map(i => ({
       id: i.id as string,
-      itemLabel: `${i.code || String(i.id).substring(0, 8)} Â· ${i.name}`,
+      itemLabel: `${i.code || String(i.id).substring(0, 8)} - ${i.name}`,
       name: i.name as string,
       code: (i.code as string) || undefined,
       categoryId: (i.category_id as string) || (i.category_name as string) || 'CONTAINERS',
@@ -1040,7 +1134,7 @@ function buildStockDbFromCache(): IpcResult<StockDB & { itemRows: StockItemRow[]
     const movements: StockMovement[] = rawMovements.map(m => ({
       id: m.id as string,
       itemId: m.item_id as string,
-      itemLabel: `${m.item_code || String(m.item_id).substring(0, 8)} Â· ${m.item_name || 'Item'}`,
+      itemLabel: `${m.item_code || String(m.item_id).substring(0, 8)} - ${m.item_name || 'Item'}`,
       direction: m.direction as 'in' | 'out',
       quantity: Number(m.quantity) || 0,
       buyerId: (m.buyer_id as string) || undefined,

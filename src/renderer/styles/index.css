@@ -2648,4 +2648,39 @@ body.backup-widget-active #toast-container {
   color: var(--clr-text);
 }
 
+/* ── Global Scrollbar Styling ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--clr-border-light);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--clr-text-dim);
+}
+
+/* Utility class for consistent scrollbar appearance */
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--clr-border-light) transparent;
+}
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: var(--clr-border-light);
+  border-radius: 99px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--clr-text-dim);
+}
 

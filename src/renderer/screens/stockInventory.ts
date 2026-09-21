@@ -17,7 +17,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
   let db: StockDB & { itemRows: StockItemRow[] } = {
     categories: [], buyers: [], items: [], movements: [], restockOrders: [], itemRows: []
   }
-  let activeTab: Tab = 'products'
+  let activeTab: Tab = (sessionStorage.getItem('inv-active-tab') as Tab | null) || 'products'
   let filterCategory = ''
   let filterSearch   = ''
   let filterMovementSource = ''
@@ -80,6 +80,8 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
       .fr{display:flex;gap:12px;}.fr>.ff{flex:1;}
       .fa{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
       .legacy-banner{margin-bottom:18px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;}
+      /* Suppress flatpickr's injected hidden alt-input from leaking into flex rows */
+      .ff .flatpickr-input[aria-hidden="true"],.ff input.flatpickr-input:not([data-field]){display:none!important;}
     </style>
     <div style="display:flex;flex-direction:column;height:100%;">
       <div class="inv-tab-bar">
@@ -105,12 +107,31 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
     <div id="inv-form-area"></div>
   `
 
+  // Restore correct active tab highlight (may differ from hardcoded 'products')
+  document.querySelectorAll('.inv-tab').forEach(b => b.classList.remove('active'))
+  document.getElementById('itab-' + activeTab)?.classList.add('active')
+
   let isExporting = false
 
   async function loadDb() {
     const res = await window.api.stockDbGet()
     if (res.ok) {
       db = res.data as any
+
+      // Sanitize any legacy Â· or · encoding artifacts
+      const clean = (s: string) => s ? s.replace(/Â·/g, '-').replace(/·/g, '-').replace(/\s+-\s+/g, ' - ') : s
+      for (const itm of db.items || []) {
+        if (itm.itemLabel) itm.itemLabel = clean(itm.itemLabel)
+        if (itm.name) itm.name = clean(itm.name)
+      }
+      for (const row of db.itemRows || []) {
+        if (row.itemLabel) row.itemLabel = clean(row.itemLabel)
+        if (row.name) row.name = clean(row.name)
+      }
+      for (const mov of db.movements || []) {
+        if (mov.itemLabel) mov.itemLabel = clean(mov.itemLabel)
+      }
+
       // Update sync status badge
       const badge = document.getElementById('inv-sync-badge')
       const label = document.getElementById('inv-sync-label')
@@ -134,6 +155,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
     activeTab = tab
     filterSearch = ''
     filterSummarySearch = ''
+    try { sessionStorage.setItem('inv-active-tab', tab) } catch {}
     document.querySelectorAll('.inv-tab').forEach(b => b.classList.remove('active'))
     document.getElementById('itab-' + tab)?.classList.add('active')
     render()
@@ -191,6 +213,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
 
   function render() {
     const el = document.getElementById('inv-content')!
+    const savedScroll = el.scrollTop
 
     // If legacy single-sheet detected, display migration banner
     let legacyBanner = ''
@@ -242,6 +265,8 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
     el.innerHTML = legacyBanner + tabHtml
     document.getElementById('btn-migrate-legacy')?.addEventListener('click', promptLegacyMigration)
     bindTabEvents()
+    // Restore scroll position (only for same-tab re-renders, not tab switches)
+    requestAnimationFrame(() => { el.scrollTop = savedScroll })
   }
 
   function getFilteredProducts(): StockItemRow[] {
@@ -724,7 +749,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
       <div class="inv-toolbar">
         <button class="btn btn-primary" id="btn-add-buyer" style="display:flex;align-items:center;gap:6px;">${Icons.plus} Add Buyer Account</button>
         <div style="margin-left:auto;font-size:13px;color:var(--clr-text-muted);">
-          <span style="font-weight:700;color:var(--clr-text);">${db.buyers.length}</span> account(s) • <span style="font-weight:700;color:var(--clr-primary);">${grandTotal}</span> total units dispatched
+          <span style="font-weight:700;color:var(--clr-text);">${db.buyers.length}</span> account(s) &bull; <span style="font-weight:700;color:var(--clr-primary);">${grandTotal}</span> total units dispatched
         </div>
       </div>
 
@@ -860,10 +885,12 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
       `<option value="${b.name}" ${b.name === selectedName ? 'selected' : ''}>${b.name}${b.isOwnShop ? ' (Own Shop)' : ''}</option>`
     ).join('')
   }
-  function itemSelect(selectedLabel = '') {
-    return db.items.map(i =>
-      `<option value="${i.itemLabel || i.name}" ${(i.itemLabel === selectedLabel || i.name === selectedLabel) ? 'selected' : ''}>${i.name}${i.code ? ` (${i.code})` : ''}</option>`
-    ).join('')
+  function itemSelect(selectedIdOrLabel = '') {
+    return db.items.map(i => {
+      const isSel = i.id === selectedIdOrLabel || i.itemLabel === selectedIdOrLabel || i.name === selectedIdOrLabel
+      const codePrefix = i.code ? `[${i.code}] ` : ''
+      return `<option value="${i.id}" ${isSel ? 'selected' : ''}>${codePrefix}${i.name}</option>`
+    }).join('')
   }
 
   function bindProductRowEvents() {
@@ -956,17 +983,29 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
             <button class="btn btn-primary" id="inv-submit">Dispatch</button>
           </div>`)
         if (!data) return
+        const qty = parseInt(data.quantity) || 1
+        const confirmed = await showModal({
+          icon: Icons.truck,
+          iconColor: 'warning',
+          title: 'Confirm Dispatch',
+          body: `Dispatch ${qty} unit${qty !== 1 ? 's' : ''} of "${label}" to ${data.buyerName} on ${data.date}?`,
+          buttons: [
+            { id: 'cancel', label: 'Cancel', className: 'btn-outline' },
+            { id: 'confirm', label: 'Confirm Dispatch', className: 'btn-primary' },
+          ]
+        })
+        if (confirmed !== 'confirm') return
         const res = await window.api.stockDbAddMovement({
           itemId: id,
           itemLabel: label,
           direction: 'out',
-          quantity: parseInt(data.quantity) || 1,
+          quantity: qty,
           buyerName: data.buyerName,
           source: 'wholesale_dispatch',
           date: data.date,
           note: data.note || undefined,
         })
-        if (res.ok) { showToast('Dispatched ✓', 'success'); await loadDb(); render() }
+        if (res.ok) { showToast('Dispatched successfully', 'success'); await loadDb(); render() }
         else showToast('Error: ' + res.error, 'error')
       })
     })
@@ -990,7 +1029,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
               </select>
             </div>
           </div>
-          <div class="ff"><label>Item *</label><select data-field="itemLabel">${itemSelect(m.itemLabel)}</select></div>
+          <div class="ff"><label>Item *</label><select data-field="itemId">${itemSelect(m.itemId || m.itemLabel)}</select></div>
           <div class="fr">
             <div class="ff"><label>Quantity *</label><input data-field="quantity" type="number" value="${m.quantity}" min="1"></div>
             <div class="ff"><label>Buyer / Outlet</label><select data-field="buyerName">${buyerSelect(m.buyerName || '')}</select></div>
@@ -1001,8 +1040,10 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
             <button class="btn btn-primary" id="inv-submit">Save</button>
           </div>`)
         if (!data) return
+        const selItem = db.items.find(i => i.id === data.itemId)
+        const itmLabel = selItem ? (selItem.itemLabel || `${selItem.code ? `${selItem.code} - ` : ''}${selItem.name}`) : data.itemId
         const res = await window.api.stockDbUpdateMovement(id, {
-          itemLabel: data.itemLabel,
+          itemLabel: itmLabel,
           direction: data.direction as 'in' | 'out',
           quantity: parseInt(data.quantity) || 1,
           date: data.date,
@@ -1096,13 +1137,17 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
           </div>
           <div class="ff"><label>Batch Date</label><input data-field="batchDate" type="text" data-date placeholder="Optional"></div>
         </div>
-        <div class="ff"><label>Low Stock Alert Threshold (optional)</label><input data-field="lowStockThreshold" type="number" placeholder="Leave blank to disable"></div>
+        <div class="fr">
+          <div class="ff"><label>Low Stock Alert Threshold</label><input data-field="lowStockThreshold" type="number" placeholder="Optional threshold"></div>
+          <div class="ff"><label>Initial Stock (Units in hand)</label><input data-field="initialStock" type="number" min="0" placeholder="Optional — e.g. 50"></div>
+        </div>
         <div class="fa">
           <button class="btn btn-outline" id="inv-cancel">Cancel</button>
           <button class="btn btn-primary" id="inv-submit">Add Product</button>
         </div>`)
       if (!data || !data.name?.trim()) return
 
+      const initialStock = parseInt(data.initialStock) || 0
       const res = await window.api.stockDbAddItem({
         name: data.name.trim(),
         code: data.code?.trim() || undefined,
@@ -1114,7 +1159,23 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
         batchDate: data.batchDate || undefined,
         lowStockThreshold: data.lowStockThreshold ? parseFloat(data.lowStockThreshold) : undefined,
       })
-      if (res.ok) { showToast('Product added to Item Catalog', 'success'); await loadDb(); render() }
+      if (res.ok) {
+        if (initialStock > 0 && res.data?.id) {
+          const itm = res.data
+          await window.api.stockDbAddMovement({
+            itemId: itm.id,
+            itemLabel: itm.itemLabel || `${itm.code ? `${itm.code} - ` : ''}${itm.name}`,
+            direction: 'in',
+            quantity: initialStock,
+            source: 'restock',
+            date: todayStr(),
+            note: 'Initial inventory balance'
+          })
+        }
+        showToast('Product added to Item Catalog', 'success')
+        await loadDb()
+        render()
+      }
       else showToast('Error: ' + res.error, 'error')
     })
 
@@ -1131,7 +1192,7 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
             </select>
           </div>
         </div>
-        <div class="ff"><label>Item *</label><select data-field="itemLabel">${itemSelect()}</select></div>
+        <div class="ff"><label>Item *</label><select data-field="itemId">${itemSelect()}</select></div>
         <div class="fr">
           <div class="ff"><label>Quantity *</label><input data-field="quantity" type="number" value="1" min="1"></div>
           <div class="ff"><label>Buyer / Outlet (for OUT)</label><select data-field="buyerName">${buyerSelect()}</select></div>
@@ -1154,9 +1215,11 @@ export async function renderStockInventoryScreen(container: HTMLElement, config:
         </div>`)
       if (!data) return
 
+      const selItem = db.items.find(i => i.id === data.itemId)
+      const itmLabel = selItem ? (selItem.itemLabel || `${selItem.code ? `${selItem.code} - ` : ''}${selItem.name}`) : data.itemId
       const res = await window.api.stockDbAddMovement({
-        itemId: data.itemLabel.split(' · ')[0] || data.itemLabel,
-        itemLabel: data.itemLabel,
+        itemId: data.itemId,
+        itemLabel: itmLabel,
         direction: data.direction as 'in' | 'out',
         quantity: parseInt(data.quantity) || 1,
         buyerName: data.direction === 'out' ? data.buyerName : undefined,

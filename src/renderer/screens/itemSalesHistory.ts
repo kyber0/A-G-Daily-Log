@@ -202,12 +202,16 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
       /* ── Detail Panel ────────────────────────────────────────── */
       .ish-detail {
         flex: 1;
-        overflow-y: auto;
-        padding: 28px 32px;
-        background: var(--clr-bg);
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        padding: 20px 28px;
+        gap: 16px;
+        background: var(--clr-bg);
+        overflow: hidden;
+      }
+      .ish-detail-header {
+        flex-shrink: 0;
       }
       .ish-detail-header h2 {
         display: flex;
@@ -234,10 +238,10 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
         background: var(--clr-surface);
         border: 1px solid var(--clr-border);
         border-radius: 14px;
-        padding: 14px 18px;
+        padding: 12px 16px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
         box-shadow: var(--shadow-sm);
       }
       .ish-kpi-label {
@@ -255,7 +259,7 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
         height: 14px;
       }
       .ish-kpi-value {
-        font-size: 20px;
+        font-size: 19px;
         font-weight: 800;
         color: var(--clr-text);
         font-variant-numeric: tabular-nums;
@@ -277,16 +281,30 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
       .ish-table-wrap {
         background: var(--clr-surface);
         border: 1px solid var(--clr-border);
-        border-radius: 16px;
-        overflow: hidden;
+        border-radius: 14px;
         box-shadow: var(--shadow-sm);
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .ish-table-scroll {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: auto;
+        min-height: 0;
       }
       .ish-table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         font-size: 13px;
       }
       .ish-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
         background: var(--clr-surface-2);
         padding: 10px 16px;
         text-align: left;
@@ -373,7 +391,7 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
         </aside>
 
         <!-- Detail Panel -->
-        <main class="ish-detail custom-scroll" data-el="detail">
+        <main class="ish-detail" data-el="detail">
           <div class="ish-empty">
             ${Icons.history}
             <h3>Select a day to view item sales</h3>
@@ -396,7 +414,7 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
     try {
       const res = await window.api.exportSalesReport(selectedMonth)
       if (res.ok && res.data) {
-        showToast('Sales Report exported successfully ✓', 'success')
+        showToast('Sales Report exported successfully', 'success')
       } else if (!res.ok) {
         showToast('Export failed: ' + res.error, 'error')
       }
@@ -527,19 +545,21 @@ export function renderItemSalesHistoryScreen(container: HTMLElement, _config: Ap
       </div>
 
       <div class="ish-table-wrap">
-        <table class="ish-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Category</th>
-              <th style="text-align:center">Qty</th>
-              <th style="text-align:right">Price</th>
-              <th style="text-align:right">Discount</th>
-              <th style="text-align:right">Net Total</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="ish-table-scroll custom-scroll">
+          <table class="ish-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th style="text-align:center">Qty</th>
+                <th style="text-align:right">Price</th>
+                <th style="text-align:right">Discount</th>
+                <th style="text-align:right">Net Total</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </div>`
   }
 

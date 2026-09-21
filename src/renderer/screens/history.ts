@@ -7,6 +7,9 @@ export function renderHistoryScreen(
   config: AppConfig,
   onNavigate: (screen: string) => void
 ): void {
+  // If already rendered, do not wipe DOM (preserves active date, search, and tab!)
+  if (container.querySelector('.hy-screen')) return
+
   let activeTab: 'water' | 'item' = 'water'
 
   container.innerHTML = `
@@ -96,6 +99,13 @@ export function renderHistoryScreen(
         overflow: hidden;
         position: relative;
       }
+      .hy-pane {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
     </style>
 
     <div class="hy-screen">
@@ -116,12 +126,19 @@ export function renderHistoryScreen(
           </button>
         </div>
       </div>
-      <div class="hy-content" id="hy-content-area"></div>
+      <div class="hy-content" id="hy-content-area">
+        <div id="hy-pane-water" class="hy-pane"></div>
+        <div id="hy-pane-item" class="hy-pane" style="display:none;"></div>
+      </div>
     </div>
   `
 
   const q = <T extends Element>(sel: string) => container.querySelector<T>(sel)!
-  const contentArea = q<HTMLDivElement>('#hy-content-area')
+  const paneWater = q<HTMLDivElement>('#hy-pane-water')
+  const paneItem  = q<HTMLDivElement>('#hy-pane-item')
+
+  let waterLoaded = false
+  let itemLoaded = false
 
   function switchTab(tab: 'water' | 'item') {
     activeTab = tab
@@ -131,9 +148,19 @@ export function renderHistoryScreen(
     })
 
     if (tab === 'water') {
-      renderWaterHistoryScreen(contentArea, config, onNavigate)
+      paneWater.style.display = 'flex'
+      paneItem.style.display = 'none'
+      if (!waterLoaded) {
+        waterLoaded = true
+        renderWaterHistoryScreen(paneWater, config, onNavigate)
+      }
     } else {
-      import('./itemSalesHistory').then(m => m.renderItemSalesHistoryScreen(contentArea, config))
+      paneWater.style.display = 'none'
+      paneItem.style.display = 'flex'
+      if (!itemLoaded) {
+        itemLoaded = true
+        import('./itemSalesHistory').then(m => m.renderItemSalesHistoryScreen(paneItem, config))
+      }
     }
   }
 

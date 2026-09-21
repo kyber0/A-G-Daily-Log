@@ -650,16 +650,16 @@ export function appendAuditLog(entry: Omit<AuditLogEntry, 'id'>): void {
   `).run(entry.log_type, entry.action, entry.details, entry.timestamp)
 }
 
-/** Read audit logs for a given month prefix (YYYY-MM) and log type */
-export function getAuditLogs(logType: 'water' | 'item', monthPrefix: string): AuditLogEntry[] {
+/** Read audit logs for a given month or date prefix (YYYY-MM or YYYY-MM-DD) and log type */
+export function getAuditLogs(logType: 'water' | 'item', prefix: string): AuditLogEntry[] {
   const db = getLocalDb()
   return db.prepare(`
     SELECT id, log_type, action, details, timestamp
     FROM audit_logs
     WHERE log_type = ? AND timestamp LIKE ?
     ORDER BY timestamp DESC
-    LIMIT 2000
-  `).all(logType, `${monthPrefix}%`) as AuditLogEntry[]
+    LIMIT 5000
+  `).all(logType, `${prefix}%`) as AuditLogEntry[]
 }
 
 // ── Day Closure Cache Helpers ─────────────────────────────────────────────────

@@ -382,37 +382,47 @@ function renderAppShell(appEl: HTMLElement): void {
     }
   )
 
+  // Screen persistence flags — render once on demand, never wipe on tab switch
+  let logsLoaded = false
+  let itemSalesLoaded = false
+  let inventoryLoaded = false
+  let analyticsLoaded = false
+
   // Nav listeners
   document.getElementById('nav-entry')!.addEventListener('click', () => navigateTo('entry'))
   document.getElementById('nav-history')!.addEventListener('click', () => {
     navigateTo('history')
-    // Re-render history each time so it shows fresh data
-    renderHistoryScreen(
-      document.getElementById('screen-history')!,
-      currentConfig!,
-      (screen: string) => navigateTo(screen as Screen)
-    )
   })
   document.getElementById('nav-analytics')!.addEventListener('click', () => {
     navigateTo('analytics')
-    import('./screens/analytics').then(m => m.renderAnalyticsScreen(document.getElementById('screen-analytics')!, currentConfig!))
+    if (!analyticsLoaded) {
+      analyticsLoaded = true
+      import('./screens/analytics').then(m => m.renderAnalyticsScreen(document.getElementById('screen-analytics')!, currentConfig!))
+    }
   })
   document.getElementById('nav-settings')!.addEventListener('click', () => navigateTo('settings'))
   document.getElementById('nav-logs')!.addEventListener('click', () => {
     navigateTo('logs')
-    import('./screens/logs').then(m => m.renderLogsScreen(document.getElementById('screen-logs')!, currentConfig!))
+    if (!logsLoaded) {
+      logsLoaded = true
+      import('./screens/logs').then(m => m.renderLogsScreen(document.getElementById('screen-logs')!, currentConfig!))
+    }
   })
   
   document.getElementById('nav-inventory')!.addEventListener('click', () => {
     navigateTo('inventory')
-    const el = document.getElementById('screen-inventory')!
-    el.innerHTML = ''
-    import('./screens/stockInventory').then(m => m.renderStockInventoryScreen(el, currentConfig!))
+    if (!inventoryLoaded) {
+      inventoryLoaded = true
+      import('./screens/stockInventory').then(m => m.renderStockInventoryScreen(document.getElementById('screen-inventory')!, currentConfig!))
+    }
   })
   
   document.getElementById('nav-item-sales')!.addEventListener('click', () => {
     navigateTo('item-sales')
-    import('./screens/itemSales').then(m => m.renderItemSalesScreen(document.getElementById('screen-item-sales')!, currentConfig!))
+    if (!itemSalesLoaded) {
+      itemSalesLoaded = true
+      import('./screens/itemSales').then(m => m.renderItemSalesScreen(document.getElementById('screen-item-sales')!, currentConfig!))
+    }
   })
 
   // Theme toggle
